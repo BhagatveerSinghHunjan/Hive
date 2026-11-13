@@ -16,5 +16,12 @@ pyotp>=2.9.0
 cryptography>=42.0.0
 keyring>=25.0.0
 mcp>=1.27,<2
+# Gmail + Google Calendar integrations
+google-api-python-client>=2.140.0
+google-auth>=2.35.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+python-pptx>=1.0.0
+tzdata>=2024.1
 # Optional: browser-use for Chrome-profile automation
 # browser-use>=0.1.40

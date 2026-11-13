@@ -5,7 +5,7 @@ import json
 import time
 import types
 from concurrent.futures import ProcessPoolExecutor
-from hive.config import MAX_AGENTS, AGENT_TIMEOUT
+from hive.config import MAX_AGENTS, AGENT_TIMEOUT, MAX_ITERATIONS
 from hive.llm import QwenClient
 from hive.tools import TOOLS, execute_tool
 from hive.permissions import get_tool_tier, check_dangerous_command, should_auto_allow
@@ -40,7 +40,7 @@ def _run_agent_process(agent_code: str, task: str, context: dict) -> dict:
         return {"error": f"Agent execution failed: {e}"}
 
 
-MAX_LOOP_ITERATIONS = 20
+MAX_LOOP_ITERATIONS = MAX_ITERATIONS
 
 
 class AgentRuntime:

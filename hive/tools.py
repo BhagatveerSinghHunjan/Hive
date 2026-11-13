@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import httpx
 from rich.console import Console
 from hive.permissions import check_url_access, check_path_access
+from hive.integrations.registry import INTEGRATION_TOOLS, run_integration_tool
 
 console = Console()
 
@@ -439,6 +440,9 @@ TOOLS = {
     },
 }
 
+# Native integrations (Gmail for Phase 1; Calendar and Slack land next).
+TOOLS.update(INTEGRATION_TOOLS)
+
 
 # ─── MCP Tool Registration ──────────────────────────────────────────────
 
@@ -718,6 +722,9 @@ async def execute_tool(tool_name: str, **kwargs) -> dict:
                 result = await _browser_google_login(kwargs.get("email"))
             elif tool_name == "browser_oauth":
                 result = await _browser_oauth(kwargs.get("platform", "github"))
+            # ─── Native Integrations ──────────────────────────────
+            elif tool_name in INTEGRATION_TOOLS:
+                result = await run_integration_tool(tool_name, **kwargs)
             # ─── MCP Tools ────────────────────────────────────────
             elif tool_name.startswith("mcp_"):
                 from hive.mcp.bridge import mcp_bridge

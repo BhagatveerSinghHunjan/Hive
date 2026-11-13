@@ -6,7 +6,7 @@ import asyncio
 import time
 import json
 from hive import __version__
-from hive.config import QWEN_MODEL, DASHSCOPE_API_KEY, ensure_dirs
+from hive.config import LLM_MODEL, LLM_API_KEY, ensure_dirs
 from hive.storage import (
     init_db, get_db, create_session, end_session,
     add_message, list_sessions, list_agents, list_skills, audit_log,
@@ -60,7 +60,7 @@ def _print_banner():
     console.print()
     for line in BANNER:
         console.print(f"  [banner]{line}[/banner]")
-    console.print(f"  [header]HIVE Code[/header] [muted]v{__version__} · {QWEN_MODEL}{mode}[/muted]")
+    console.print(f"  [header]HIVE Code[/header] [muted]v{__version__} · {LLM_MODEL}{mode}[/muted]")
     console.print("  [muted]Type[/muted] [prompt]/help[/prompt] [muted]for commands[/muted]\n")
 
 
@@ -219,7 +219,7 @@ class HiveCLI:
 
         await init_db()
         self.db = await get_db()
-        await create_session(self.db, self.session_id, QWEN_MODEL)
+        await create_session(self.db, self.session_id, LLM_MODEL)
 
         if TEST_MODE:
             _print_banner()
@@ -235,7 +235,7 @@ class HiveCLI:
             await self.db.close()
             return
 
-        llm = QwenClient(api_key=DASHSCOPE_API_KEY, model=QWEN_MODEL)
+        llm = QwenClient(api_key=DASHSCOPE_API_KEY, model=LLM_MODEL)
         self.leader = Leader(llm)
         _register_interactive_handlers()
 
@@ -327,7 +327,7 @@ class HiveCLI:
                 await add_message(self.db, self.session_id, "user", text)
                 await add_message(self.db, self.session_id, "assistant", response)
                 
-                console.print(f"\n[status]▣ HIVE[/status] [muted]· {QWEN_MODEL} · {elapsed:.1f}s[/muted]")
+                console.print(f"\n[status]▣ HIVE[/status] [muted]· {LLM_MODEL} · {elapsed:.1f}s[/muted]")
                 console.print()
                 return
             except Exception as e:
@@ -476,7 +476,7 @@ class HiveCLI:
             console.print()
 
         elif command == "/model":
-            console.print(f"[bold]Current model:[/bold] [code]{QWEN_MODEL}[/code]\n")
+            console.print(f"[bold]Current model:[/bold] [code]{LLM_MODEL}[/code]\n")
 
         elif command == "/resume":
             if arg:
@@ -484,7 +484,7 @@ class HiveCLI:
                 self.memory.clear()
                 try:
                     from hive.storage import create_session
-                    await create_session(self.db, self.session_id, QWEN_MODEL)
+                    await create_session(self.db, self.session_id, LLM_MODEL)
                 except Exception:
                     pass
                 console.print(f"[success]Done.[/success] Resumed session: [code]{arg}[/code]\n")
@@ -1112,9 +1112,9 @@ class HiveServer:
     async def start(self):
         await init_db()
         self.db = await get_db()
-        await create_session(self.db, self.session_id, QWEN_MODEL)
+        await create_session(self.db, self.session_id, LLM_MODEL)
 
-        llm = QwenClient(api_key=DASHSCOPE_API_KEY, model=QWEN_MODEL)
+        llm = QwenClient(api_key=DASHSCOPE_API_KEY, model=LLM_MODEL)
         self.leader = Leader(llm)
 
         # Register interactive handlers for the Ink frontend.
@@ -1129,6 +1129,12 @@ class HiveServer:
         # Signal ready immediately
         self._send({"type": "ready"})
 
+        # Integration and MCP discovery run in the background so startup stays fast.
+        self._startup_tasks = [
+            asyncio.create_task(self._send_integration_status()),
+            asyncio.create_task(self._init_mcp()),
+        ]
+
         # Start message reader task
         reader_task = asyncio.create_task(self._read_loop())
 
@@ -1137,9 +1143,48 @@ class HiveServer:
         except asyncio.CancelledError:
             pass
         finally:
+            for task in getattr(self, "_startup_tasks", []):
+                task.cancel()
+            await asyncio.gather(
+                *getattr(self, "_startup_tasks", []), return_exceptions=True
+            )
             await end_session(self.db, self.session_id)
             self.leader.shutdown()
             await self.db.close()
+
+    async def _send_integration_status(self) -> None:
+        """Send credential-safe integration status to the desktop shell."""
+        try:
+            from hive.integrations.registry import integration_status
+            status = await integration_status(verify=False)
+            # Do not send local filesystem paths to the renderer.
+            google_status = status.get("google")
+            if isinstance(google_status, dict):
+                google_status.pop("client_source", None)
+            self._send({"type": "integration_status", "integrations": status})
+        except Exception as exc:
+            self._send({
+                "type": "integration_status",
+                "integrations": {"error": str(exc)},
+            })
+
+    async def _init_mcp(self) -> None:
+        """Connect configured MCP servers without blocking startup.
+
+        Servers that need interactive OAuth are reported as needing auth; we do
+        not launch a browser from the server process.
+        """
+        try:
+            from hive.mcp.bridge import mcp_bridge
+            summary = await mcp_bridge.initialize()
+            self._send({"type": "mcp_status", **summary})
+        except Exception as exc:
+            self._send({
+                "type": "mcp_status",
+                "connected": 0,
+                "tools": 0,
+                "errors": [str(exc)],
+            })
 
     def _register_interactive_handlers(self) -> None:
         """Register human-in-the-loop prompt handlers for Ink frontend."""
@@ -1395,6 +1440,32 @@ if __name__ == "__main__":
     if "--server" in sys.argv:
         server = HiveServer()
         asyncio.run(server.start())
+    elif "--check-integrations" in sys.argv:
+        from hive.integrations.registry import integration_status
+        status = asyncio.run(integration_status(verify=True))
+        print(json.dumps(status, indent=2, default=str))
+    elif "--connect-google" in sys.argv:
+        from hive.integrations.google_auth import GoogleIntegrationError, google_auth
+        try:
+            result = asyncio.run(asyncio.to_thread(google_auth.connect))
+        except GoogleIntegrationError as exc:
+            result = {"connected": False, "error": str(exc)}
+        print(json.dumps(result, indent=2, default=str))
+    elif "--disconnect-google" in sys.argv:
+        from hive.integrations.google_auth import google_auth
+        removed = google_auth.disconnect()
+        print(json.dumps({"disconnected": removed}, indent=2))
+    elif "--gmail-smoke" in sys.argv:
+        from hive.integrations.gmail import search_messages
+        query = "is:unread"
+        index = sys.argv.index("--gmail-smoke")
+        if len(sys.argv) > index + 1 and not sys.argv[index + 1].startswith("--"):
+            query = sys.argv[index + 1]
+        try:
+            result = asyncio.run(asyncio.to_thread(search_messages, query, 5))
+        except Exception as exc:
+            result = {"error": str(exc), "query": query}
+        print(json.dumps(result, indent=2, default=str))
     else:
         cli = HiveCLI()
         asyncio.run(cli.start())

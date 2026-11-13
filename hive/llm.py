@@ -1,19 +1,26 @@
-"""LLM client — Qwen via DashScope (OpenAI-compatible SDK)."""
+"""LLM client — any OpenAI-compatible endpoint.
+
+Defaults to DashScope (Qwen), but HIVE_LLM_BASE_URL / HIVE_LLM_API_KEY /
+HIVE_LLM_MODEL retarget it at OpenRouter, Gemini, Groq, OpenCode Zen, or a
+local Ollama server without touching code.
+"""
 
 import json
 from openai import AsyncOpenAI
-from hive.config import DASHSCOPE_API_KEY, QWEN_MODEL, QWEN_BASE_URL
+from hive.config import LLM_API_KEY, LLM_MODEL, LLM_BASE_URL
 
 
 class QwenClient:
-    """Async Qwen API client using OpenAI SDK."""
+    """Async chat client for OpenAI-compatible providers."""
 
-    def __init__(self, api_key: str = DASHSCOPE_API_KEY,
-                 model: str = QWEN_MODEL):
+    def __init__(self, api_key: str = LLM_API_KEY,
+                 model: str = LLM_MODEL,
+                 base_url: str = LLM_BASE_URL):
         self.model = model
+        self.base_url = base_url
         self.client = AsyncOpenAI(
             api_key=api_key,
-            base_url=QWEN_BASE_URL,
+            base_url=base_url,
         )
 
     async def chat(self, messages: list[dict],
@@ -65,18 +72,19 @@ class QwenClient:
         """Convert tool registry to OpenAI function calling schema."""
         schema = []
         for name, spec in tools.items():
-            # Determine which params are required vs optional
-            required_params = []
+            # Explicit "required" wins; otherwise preserve the historical
+            # first-parameter heuristic for existing tools.
+            required_params = list(spec.get("required", []))
+            if "required" not in spec:
+                for param_name in spec["parameters"]:
+                    if param_name in ("query", "path", "command", "url"):
+                        required_params.append(param_name)
             properties = {}
             for param_name, param_spec in spec["parameters"].items():
                 properties[param_name] = {
                     "type": param_spec["type"],
                     "description": param_spec["description"],
                 }
-                # Mark first param (usually "query" or "path") as required
-                # Everything else is optional
-                if param_name == "query" or param_name == "path" or param_name == "command" or param_name == "url":
-                    required_params.append(param_name)
 
             schema.append({
                 "type": "function",

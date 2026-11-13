@@ -7,15 +7,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Paths
-HIVE_HOME = Path(os.environ.get("HIVE_HOME", Path.home() / ".hive"))
+HIVE_HOME = Path(
+    os.environ.get("HIVE_HOME", Path.home() / ".hive")
+).expanduser()
 HIVE_DB = HIVE_HOME / "hive.db"
 AGENTS_DIR = HIVE_HOME / "agents" / "generated"
 SKILLS_DIR = HIVE_HOME / "skills"
 
-# LLM
+# LLM — any OpenAI-compatible endpoint (DashScope, OpenRouter, Gemini, Groq,
+# OpenCode Zen, Ollama). HIVE_LLM_* wins; the QWEN_* names remain as defaults
+# so existing installs keep working unchanged.
 DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3.7-plus")
 QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
+LLM_BASE_URL = os.environ.get("HIVE_LLM_BASE_URL", "").strip() or QWEN_BASE_URL
+LLM_API_KEY = os.environ.get("HIVE_LLM_API_KEY", "").strip() or DASHSCOPE_API_KEY
+LLM_MODEL = os.environ.get("HIVE_LLM_MODEL", "").strip() or QWEN_MODEL
 
 # Browser automation
 BROWSER_SCREENSHOT_DIR = Path(
@@ -63,6 +71,35 @@ MAX_MESSAGES = int(os.environ.get("HIVE_MAX_MESSAGES", "50"))
 MAX_TOOL_CACHE = int(os.environ.get("HIVE_MAX_TOOL_CACHE", "20"))
 AGENT_TIMEOUT = int(os.environ.get("HIVE_AGENT_TIMEOUT", "60"))
 MAX_TOKENS = int(os.environ.get("HIVE_MAX_TOKENS", "4000"))
+MAX_ITERATIONS = int(os.environ.get("HIVE_MAX_ITERATIONS", "20"))
+HIVE_AGENT_PROFILE = os.environ.get("HIVE_AGENT_PROFILE", "full").strip().lower()
+HIVE_TIMEZONE = os.environ.get("HIVE_TIMEZONE", "Asia/Kolkata")
+
+# Integrations — Google (Gmail + Calendar)
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+GOOGLE_OAUTH_CLIENT_FILE = os.environ.get("GOOGLE_OAUTH_CLIENT_FILE", "").strip()
+_google_token_env = os.environ.get("GOOGLE_TOKEN_FILE", "").strip()
+GOOGLE_TOKEN_FILE = (
+    Path(_google_token_env).expanduser()
+    if _google_token_env
+    else HIVE_HOME / "google_token.json"
+)
+# Use the canonical userinfo URLs rather than the "email"/"profile" aliases.
+# Google expands the aliases in its token response, and oauthlib treats that
+# expansion as a scope change and refuses the token.
+GOOGLE_OAUTH_SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/calendar",
+]
+
+# Integrations — Slack
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+SLACK_DEFAULT_CHANNEL = os.environ.get("SLACK_DEFAULT_CHANNEL", "").strip()
 
 # Security
 ALLOWED_DOMAINS = [
@@ -73,9 +110,17 @@ ALLOWED_DOMAINS = [
     "api.github.com",
     "raw.githubusercontent.com",
     "httpbin.org",
-    "httpbin.org",
     "localhost",
     "127.0.0.1",
+    # Google integrations
+    "accounts.google.com",
+    "oauth2.googleapis.com",
+    "gmail.googleapis.com",
+    "www.googleapis.com",
+    # Slack integration
+    "slack.com",
+    "app.slack.com",
+    "api.slack.com",
 ]
 
 DENIED_PATTERNS = [
@@ -91,15 +136,21 @@ DENIED_PATTERNS = [
 
 BLOCKED_ENV_VARS = [
     "DASHSCOPE_API_KEY",
+    "HIVE_LLM_API_KEY",
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GROQ_API_KEY",
     "AWS_SECRET_ACCESS_KEY",
     "GITHUB_TOKEN",
+    "SLACK_BOT_TOKEN",
 ]
 
 CREDENTIAL_PATTERNS = [
     "*.env", "*.key", "*.pem", "*.p12", "*.pfx",
-    "*credentials*", "*secret*", "*token*",
+    "*credentials*", "*secret*", "*token*", "*oauth*client*",
 ]
 
 DENIED_PATHS = [

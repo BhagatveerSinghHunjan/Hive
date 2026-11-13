@@ -34,6 +34,8 @@ build/
 .eggs/
 *.egg
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -42,6 +44,11 @@ venv/
 htmlcov/
 
 ### HIVE specific ###
+# Secrets
+*.pem
+*.key
+google_token.json
+google_oauth_client.json
 db/hive.db
 *.log
 .DS_Store

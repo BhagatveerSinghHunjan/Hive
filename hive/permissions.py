@@ -32,6 +32,11 @@ TOOL_TIERS = {
     "git_commit": "sensitive",
     "install_package": "sensitive",
     "delete_file": "dangerous",
+    # Gmail integration (read-only in Phase 1)
+    "gmail_status": "safe",
+    "gmail_search": "safe",
+    "gmail_read_thread": "safe",
+    "gmail_list_labels": "safe",
     # Browser tools
     "browser_open": "moderate",
     "browser_click": "moderate",
