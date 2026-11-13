@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hive-os"
+version = "0.1.0"
+description = "HIVE OS — AI Operating System where agents form temporary societies"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "HIVE Team"}
+]
+keywords = ["ai", "agents", "llm", "operating-system", "qwen"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "aiosqlite>=0.20.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.9.0",
+    "openai>=1.50.0",
+    "rich>=13.0.0",
+    "python-pptx>=1.0.0",
+    "pyautogui>=0.9",
+    "pywinauto>=0.6",
+    "playwright>=1.40.0",
+    "playwright-stealth>=1.0.6",
+    "pyperclip>=1.8",
+    "psutil>=5.9.0",
+    "pygetwindow>=0.0.9",
+    "pyotp>=2.9.0",
+    "cryptography>=42.0.0",
+    "keyring>=25.0.0",
+    "mcp>=1.27,<2",
+]
+
+[project.optional-dependencies]
+browser = [
+    "browser-use>=0.1.40",
+]
+
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.scripts]
+hive = "hive.main:main"
+
+[project.urls]
+Homepage = "https://github.com/lokeshkashyap1712008-gif/HIVE"
+Repository = "https://github.com/lokeshkashyap1712008-gif/HIVE"
+
+[tool.setuptools.packages.find]
+include = ["hive*"]
+
+[tool.setuptools.package-data]
+hive = ["*.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
