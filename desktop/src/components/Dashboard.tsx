@@ -59,8 +59,8 @@ export function Dashboard({
     <div className="dashboard">
       <div className="page-head">
         <div>
-          <h1>Mission control</h1>
-          <p>One runtime, a society of agents, and a single approval gate.</p>
+          <h1>Task control</h1>
+          <p>One queen, a temporary colony of specialists, and a single approval gate.</p>
         </div>
         <div className="page-head-status">
           <span className={`status-pill ${connected}`}>
@@ -70,10 +70,12 @@ export function Dashboard({
         </div>
       </div>
 
-      <div className="grid">
+      <div className="dashboard-band">
         <section className="card span-4">
           <div className="card-label">Runtime</div>
-          <div className="runtime-state">{connected === 'connected' ? 'Healthy' : connected === 'connecting' ? 'Booting…' : 'Exited'}</div>
+          <div className="runtime-state">
+            {connected === 'connected' ? 'Healthy' : connected === 'connecting' ? 'Booting…' : 'Exited'}
+          </div>
           <div className="kv">
             <span>Status</span>
             <span>{status}</span>
@@ -86,12 +88,11 @@ export function Dashboard({
             <span>Elapsed</span>
             <span>{elapsed}</span>
           </div>
-          <div className="card-foot">Electron main ↔ JSON-lines ↔ <code>hive.cli --server</code></div>
         </section>
 
-        <section className="card span-8">
-          <div className="card-label">Current mission</div>
-          <div className="mission-title">{task || 'No mission yet — send a task below.'}</div>
+        <section className="card span-5">
+          <div className="card-label">Current task</div>
+          <div className="mission-title">{task || 'No task yet — send one below.'}</div>
           <div className="progress-row">
             <span>
               Subtasks {subtasks.total > 0 ? `${subtasks.done} / ${subtasks.total}` : '—'}
@@ -114,7 +115,7 @@ export function Dashboard({
           )}
         </section>
 
-        <section className="card span-4">
+        <section className="card span-3">
           <div className="card-label">Credits</div>
           <div className="big-number">
             {budget.spent}
@@ -123,78 +124,78 @@ export function Dashboard({
           <div className="meter meter-lg">
             <div className="meter-fill" style={{ width: `${pct}%` }} />
           </div>
-          <div className="card-foot">
-            {budget.total - budget.spent} credits remaining · tracked from spend/earn events
-          </div>
+          <div className="card-foot">{budget.total - budget.spent} remaining</div>
         </section>
+      </div>
 
-        <section className="card span-8">
-          <div className="card-row">
-            <div className="card-label">Club ops snapshot</div>
-            <button className="ghost-btn" onClick={onRefresh}>
-              Refresh
-            </button>
-          </div>
-          {overview ? (
-            <>
-              <div className="ops-stats">
-                <button className="ops-stat" onClick={() => onOpen('inbox')}>
-                  <span className="ops-stat-value">{overview.inbox.count}</span>
-                  <span className="ops-stat-label">unread email</span>
-                </button>
-                <button className="ops-stat" onClick={() => onOpen('tasks')}>
-                  <span className="ops-stat-value">{overview.tasks.pending}</span>
-                  <span className="ops-stat-label">pending tasks</span>
-                </button>
-                <button className="ops-stat" onClick={() => onOpen('calendar')}>
-                  <span className="ops-stat-value">{overview.agenda.count}</span>
-                  <span className="ops-stat-label">events ahead</span>
-                </button>
-                <button className="ops-stat" onClick={() => onOpen('missions')}>
-                  <span className="ops-stat-value">{overview.missions}</span>
-                  <span className="ops-stat-label">missions</span>
-                </button>
-              </div>
-              <div className="kv">
-                <span>Next meeting</span>
-                <span>
-                  {overview.agenda.next
-                    ? `${overview.agenda.next.summary} · ${overview.agenda.next.start}`
-                    : 'No events on the calendar'}
-                </span>
-              </div>
-              <div className="connector-row">
-                <span className={`connection-chip ${overview.connections.google_connected ? 'on' : ''}`}>
-                  <span className="status-dot" />
-                  Google {overview.connections.google_connected ? 'connected' : 'not connected'}
-                </span>
-                {overview.connections.google_email && (
-                  <span className="connection-email">{overview.connections.google_email}</span>
-                )}
-                <span className={`connection-chip ${overview.connections.slack_configured ? 'on' : ''}`}>
-                  <span className="status-dot" />
-                  Slack {overview.connections.slack_configured ? 'configured' : 'off'}
-                </span>
-                {overview.timezone && <span className="connection-email">{overview.timezone}</span>}
-              </div>
-              {(overview.inbox.needs_auth || overview.agenda.needs_auth) && (
-                <div className="card-foot">
-                  Google needs authorization. Run <code>python -m hive.cli --connect-google</code>.
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="empty small">
-              Waiting for the runtime snapshot. Club ops data loads when the Python server is live.
+      <section className="card">
+        <div className="card-row">
+          <div className="card-label">Club ops</div>
+          <button type="button" className="ghost-btn btn-small" onClick={onRefresh}>
+            Refresh
+          </button>
+        </div>
+        {overview ? (
+          <>
+            <div className="ops-stats">
+              <button className="ops-stat" onClick={() => onOpen('inbox')}>
+                <span className="ops-stat-value">{overview.inbox.count}</span>
+                <span className="ops-stat-label">Unread email</span>
+              </button>
+              <button className="ops-stat" onClick={() => onOpen('tasks')}>
+                <span className="ops-stat-value">{overview.tasks.pending}</span>
+                <span className="ops-stat-label">Pending tasks</span>
+              </button>
+              <button className="ops-stat" onClick={() => onOpen('calendar')}>
+                <span className="ops-stat-value">{overview.agenda.count}</span>
+                <span className="ops-stat-label">Events ahead</span>
+              </button>
+              <button className="ops-stat" onClick={() => onOpen('missions')}>
+                <span className="ops-stat-value">{overview.missions}</span>
+                <span className="ops-stat-label">To-dos</span>
+              </button>
             </div>
-          )}
-        </section>
+            <div className="kv">
+              <span>Next meeting</span>
+              <span>
+                {overview.agenda.next
+                  ? `${overview.agenda.next.summary} · ${overview.agenda.next.start}`
+                  : 'No events on the calendar'}
+              </span>
+            </div>
+            <div className="connector-row">
+              <span className={`connection-chip ${overview.connections.google_connected ? 'on' : ''}`}>
+                <span className="status-dot" />
+                Google {overview.connections.google_connected ? 'connected' : 'not connected'}
+              </span>
+              {overview.connections.google_email && (
+                <span className="connection-email">{overview.connections.google_email}</span>
+              )}
+              <span className={`connection-chip ${overview.connections.slack_configured ? 'on' : ''}`}>
+                <span className="status-dot" />
+                Slack {overview.connections.slack_configured ? 'configured' : 'off'}
+              </span>
+              {overview.timezone && <span className="connection-email">{overview.timezone}</span>}
+            </div>
+            {(overview.inbox.needs_auth || overview.agenda.needs_auth) && (
+              <div className="card-foot">
+                Google needs authorization. Run <code>python -m hive.cli --connect-google</code>.
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="empty quiet">Waiting for the runtime snapshot.</div>
+        )}
+      </section>
 
+      <div className="dashboard-band">
         <section className="card span-8">
           <div className="card-label">Active agents</div>
           {activeAgents.length === 0 ? (
-            <div className="empty small">
-              {agents.length > 0 ? 'All agents finished. Check the execution monitor for the trail.' : 'No agents spawned yet. The leader routes each task.'}
+            <div className="empty quiet">
+              {agents.length > 0
+                ? 'All agents finished. Check the execution monitor for the trail.'
+                : 'No agents spawned yet. The leader routes each task.'}
             </div>
           ) : (
             <div className="agent-grid">
@@ -212,7 +213,8 @@ export function Dashboard({
           )}
           {agents.length > activeAgents.length && (
             <div className="card-foot">
-              {agents.length - activeAgents.length} recent agent{agents.length - activeAgents.length === 1 ? '' : 's'} completed.
+              {agents.length - activeAgents.length} recent agent
+              {agents.length - activeAgents.length === 1 ? '' : 's'} completed.
             </div>
           )}
         </section>
@@ -226,15 +228,17 @@ export function Dashboard({
           <p className="card-copy">
             Outbound email, calendar invites, and risky tool calls always stop for a human.
           </p>
-          <button className="btn btn-approve" onClick={() => onOpen('approvals')}>
+          <button type="button" className="btn btn-approve" onClick={() => onOpen('approvals')}>
             Open approvals
           </button>
         </section>
+      </div>
 
+      <div className="dashboard-band">
         <section className="card span-6">
           <div className="card-label">Recent events</div>
           {recent.length === 0 ? (
-            <div className="empty small">Events appear here as the society works.</div>
+            <div className="empty quiet">Events appear here as the society works.</div>
           ) : (
             <div className="event-list compact">
               {recent.map((event) => (
@@ -245,11 +249,12 @@ export function Dashboard({
         </section>
 
         <section className="card span-6">
-          <div className="card-label">Quick missions</div>
+          <div className="card-label">Quick tasks</div>
           <div className="quick-list">
             {quickPrompts.map((prompt) => (
               <button
                 key={prompt}
+                type="button"
                 className="quick-prompt"
                 disabled={disabled}
                 onClick={() => onSubmit(prompt)}

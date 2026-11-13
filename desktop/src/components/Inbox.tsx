@@ -68,7 +68,7 @@ export function InboxScreen({ request, refreshKey, onNotify }: InboxProps) {
         </div>
         <div className="page-head-actions">
           <span className="pending-pill">{unread} unread</span>
-          <button className="ghost-btn" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>

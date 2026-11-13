@@ -1,0 +1,23 @@
+---
+description: HIVE desktop — black + honey liquid glass theme
+globs: desktop/**/*.{tsx,css,html,svg}
+alwaysApply: false
+---
+
+# Desktop UI
+
+Follow [desktop/DESIGN.md](desktop/DESIGN.md).
+
+## Must
+
+- Palette: near-black void + honey yellow `#F5B800`. Logo is black/yellow only.
+- Primary buttons: honey fill, black label, amber glow + inset depth.
+- Secondary/ghost: black glass, honey hairline.
+- Surfaces: liquid glass (`backdrop-filter`) with deep shadow + inset highlight.
+- Logo file: `desktop/public/logo.svg` (replace with final mark; keep hex-readable).
+
+## Must not
+
+- French blue / purple / soft-sky SaaS kits.
+- Spreading yellow onto every border and icon — reserve honey for CTAs, active, focus, brand.
+- Cartoon bee stickers or emoji storms.

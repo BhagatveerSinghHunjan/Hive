@@ -95,10 +95,10 @@ export function TasksScreen({ request, refreshKey, onNotify }: TasksProps) {
         </div>
         <div className="page-head-actions">
           <span className="pending-pill">{pending} pending</span>
-          <button className="ghost-btn" onClick={() => setShowCompleted((value) => !value)}>
+          <button type="button" className="ghost-btn btn-small" onClick={() => setShowCompleted((value) => !value)}>
             {showCompleted ? 'Hide completed' : 'Show completed'}
           </button>
-          <button className="ghost-btn" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>

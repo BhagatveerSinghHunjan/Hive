@@ -35,7 +35,7 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
     try {
       const data = await request('missions');
       setMissions(data.missions ?? []);
-      if (!data.ok) setError(String(data.error ?? 'Missions unavailable'));
+      if (!data.ok) setError(String(data.error ?? 'To-dos unavailable'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -60,7 +60,7 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
         setResult(data);
         onNotify(
           'response',
-          `Mission: ${mission.title}`,
+          `To-do: ${mission.title}`,
           data.ok ? 'Workflow finished — review next actions.' : String(data.error ?? 'Failed')
         );
       } catch (err) {
@@ -80,12 +80,12 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
     <div className="ops-page">
       <div className="page-head">
         <div>
-          <h1>Missions</h1>
+          <h1>To-dos</h1>
           <p>One click runs a club-ops workflow. Outbound actions come back as proposals for approval.</p>
         </div>
         <div className="page-head-actions">
-          <span className="pending-pill">{missions.length} missions</span>
-          <button className="ghost-btn" onClick={() => void load()} disabled={loading}>
+          <span className="pending-pill">{missions.length} to-dos</span>
+          <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
@@ -138,7 +138,7 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
                   disabled={running === mission.name}
                   onClick={() => void run(mission)}
                 >
-                  {running === mission.name ? 'Running…' : 'Run mission'}
+                  {running === mission.name ? 'Running…' : 'Run to-do'}
                 </button>
                 <button className="ghost-btn" onClick={() => setActive(isActive ? null : mission.name)}>
                   {isActive ? 'Hide params' : keys.length > 0 ? 'Set params' : 'Details'}
@@ -154,7 +154,7 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
           <div className="card-row">
             <div>
               <div className="card-label">Latest result</div>
-              <h3>{result.title ?? result.mission ?? 'Mission'}</h3>
+              <h3>{result.title ?? result.mission ?? 'To-do'}</h3>
             </div>
             <span className={`tier-badge ${result.ok ? 'tier-safe' : 'tier-dangerous'}`}>
               {result.ok ? 'ok' : 'attention'}
@@ -187,7 +187,7 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
                       onAsk(
                         `Execute this prepared action now: tool ${action.tool}, args ${JSON.stringify(
                           action.args ?? {}
-                        )}. This is a proposal from a club-ops mission; request human approval before any outbound action.`
+                        )}. This is a proposal from a club-ops to-do; request human approval before any outbound action.`
                       )
                     }
                   >

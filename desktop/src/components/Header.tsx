@@ -10,9 +10,9 @@ interface HeaderProps {
 }
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
-  connecting: 'Connecting…',
-  connected: 'Runtime connected',
-  exited: 'Runtime exited',
+  connecting: 'Starting',
+  connected: 'Live',
+  exited: 'Offline',
 };
 
 export function Header({ connected, status, task, elapsed, mode, onRestart }: HeaderProps) {
@@ -23,7 +23,7 @@ export function Header({ connected, status, task, elapsed, mode, onRestart }: He
           <span className="status-dot" />
           {CONNECTION_LABEL[connected]}
         </span>
-        <span className="header-mode">mode: {mode}</span>
+        <span className="header-mode">{mode}</span>
       </div>
 
       <div className="header-center">
@@ -38,8 +38,8 @@ export function Header({ connected, status, task, elapsed, mode, onRestart }: He
       </div>
 
       <div className="header-right">
-        <button className="ghost-btn" onClick={onRestart} title="Quit Python and start a fresh runtime">
-          ⟳ Stop &amp; restart runtime
+        <button type="button" className="ghost-btn" onClick={onRestart} title="Restart runtime">
+          Restart
         </button>
       </div>
     </header>

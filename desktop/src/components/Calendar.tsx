@@ -82,7 +82,7 @@ export function CalendarScreen({ request, refreshKey, onAsk }: CalendarProps) {
               </button>
             ))}
           </div>
-          <button className="ghost-btn" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>

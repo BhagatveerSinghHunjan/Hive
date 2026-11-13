@@ -221,11 +221,13 @@ export function Approvals({ approvals, interactive, onPermission, onInteractive 
 
       {pending === 0 ? (
         <div className="empty approval-empty">
-          <div className="empty-icon">⬡</div>
-          <h2>No approvals waiting</h2>
+          <div className="empty-icon" title="Empty comb">
+            ⬡
+          </div>
+          <h2>Quiet comb</h2>
           <p>
-            When HIVE wants to edit a file, run a sensitive command, confirm a purchase, or hand over a 2FA code, the request
-            lands here. Safe reads are auto-approved.
+            When the colony needs to edit a file, run a sensitive command, confirm a purchase, or hand over a 2FA code, the
+            request lands here. Safe reads are auto-approved.
           </p>
           <div className="risk-legend">
             <span className="tier-badge tier-safe">safe</span>

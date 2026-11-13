@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import type { Budget, ConnectionState } from '../types';
 
 export type Screen =
@@ -18,16 +19,17 @@ interface NavProps {
   connected: ConnectionState;
   budget: Budget;
   onRestart: () => void;
+  onEgg?: (message: string) => void;
 }
 
-const ITEMS: Array<{ id: Screen; label: string; icon: string; section: 'club' | 'system' }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: '◈', section: 'club' },
-  { id: 'inbox', label: 'Inbox', icon: '✉', section: 'club' },
-  { id: 'calendar', label: 'Calendar', icon: '▦', section: 'club' },
-  { id: 'tasks', label: 'Tasks', icon: '☑', section: 'club' },
-  { id: 'missions', label: 'Missions', icon: '✦', section: 'club' },
-  { id: 'monitor', label: 'Execution Monitor', icon: '▤', section: 'system' },
-  { id: 'approvals', label: 'Approvals', icon: '✓', section: 'system' },
+const ITEMS: Array<{ id: Screen; label: string; icon: string }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: '◈' },
+  { id: 'inbox', label: 'Inbox', icon: '✉' },
+  { id: 'calendar', label: 'Calendar', icon: '▦' },
+  { id: 'tasks', label: 'Tasks', icon: '☑' },
+  { id: 'missions', label: 'To-dos', icon: '✦' },
+  { id: 'monitor', label: 'Monitor', icon: '▤' },
+  { id: 'approvals', label: 'Approvals', icon: '✓' },
 ];
 
 export function Nav({
@@ -39,74 +41,87 @@ export function Nav({
   connected,
   budget,
   onRestart,
+  onEgg,
 }: NavProps) {
   const pct = Math.min(100, Math.round((budget.spent / Math.max(1, budget.total)) * 100));
+  const taps = useRef(0);
+  const resetTimer = useRef<number | null>(null);
+  const [buzzing, setBuzzing] = useState(false);
+
+  const tapBrand = () => {
+    taps.current += 1;
+    if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+    resetTimer.current = window.setTimeout(() => {
+      taps.current = 0;
+    }, 1600);
+    if (taps.current < 5) return;
+    taps.current = 0;
+    setBuzzing(true);
+    window.setTimeout(() => setBuzzing(false), 700);
+    onEgg?.('The swarm is listening.');
+  };
+
+  const badgeFor = (id: Screen) => {
+    if (id === 'inbox') return inboxCount;
+    if (id === 'tasks') return taskCount;
+    if (id === 'approvals') return pendingApprovals;
+    return 0;
+  };
 
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-mark">⬡</div>
-        <div>
-          <div className="brand-name">HIVE</div>
-          <div className="brand-sub">DESKTOP</div>
-        </div>
+      <div className="sidebar-top">
+        <button
+          type="button"
+          className="brand brand-hit"
+          onClick={tapBrand}
+          title="HIVE — agents form temporary societies"
+        >
+          <div className={`brand-mark ${buzzing ? 'buzz' : ''}`} aria-hidden>
+            <img className="brand-logo" src="./logo.svg" alt="" />
+          </div>
+          <div className="brand-copy">
+            <div className="brand-name">HIVE</div>
+            <div className="brand-sub">Colony</div>
+          </div>
+        </button>
+
+        <nav className="nav" aria-label="Primary">
+          {ITEMS.map((item) => {
+            const badge = badgeFor(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`nav-item ${screen === item.id ? 'active' : ''}`}
+                onClick={() => setScreen(item.id)}
+              >
+                <span className="nav-icon" aria-hidden>
+                  {item.icon}
+                </span>
+                <span className="nav-text">{item.label}</span>
+                {badge > 0 && <span className="nav-badge">{badge}</span>}
+              </button>
+            );
+          })}
+        </nav>
       </div>
-
-      <nav className="nav">
-        <div className="nav-label">Club ops</div>
-        {ITEMS.filter((item) => item.section === 'club').map((item) => {
-          const badge =
-            item.id === 'inbox' ? inboxCount : item.id === 'tasks' ? taskCount : 0;
-          return (
-            <button
-              key={item.id}
-              className={`nav-item ${screen === item.id ? 'active' : ''}`}
-              onClick={() => setScreen(item.id)}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-text">{item.label}</span>
-              {badge > 0 && <span className="nav-badge">{badge}</span>}
-            </button>
-          );
-        })}
-
-        <div className="nav-label nav-label-spaced">System</div>
-        {ITEMS.filter((item) => item.section === 'system').map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item ${screen === item.id ? 'active' : ''}`}
-            onClick={() => setScreen(item.id)}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span className="nav-text">{item.label}</span>
-            {item.id === 'approvals' && pendingApprovals > 0 && (
-              <span className="nav-badge">{pendingApprovals}</span>
-            )}
-          </button>
-        ))}
-
-        <div className="nav-label nav-label-spaced">Post-demo</div>
-        <button className="nav-item disabled" disabled title="Planned after the 60-minute demo">
-          <span className="nav-icon">✦</span>
-          <span className="nav-text">Agent Studio</span>
-          <span className="nav-soon">soon</span>
-        </button>
-        <button className="nav-item disabled" disabled title="Planned after the 60-minute demo">
-          <span className="nav-icon">▣</span>
-          <span className="nav-text">Workspace</span>
-          <span className="nav-soon">soon</span>
-        </button>
-      </nav>
 
       <div className="sidebar-footer">
         <div className={`sidebar-connection ${connected}`}>
           <span className="status-dot" />
-          {connected === 'connected' ? 'Python runtime live' : connected === 'connecting' ? 'Starting runtime' : 'Runtime offline'}
+          <span>
+            {connected === 'connected'
+              ? 'Runtime live'
+              : connected === 'connecting'
+                ? 'Starting…'
+                : 'Runtime offline'}
+          </span>
         </div>
 
-        <div className="budget">
+        <div className="budget-card" title="Nectar budget for the session">
           <div className="budget-row">
-            <span>Session credits</span>
+            <span>Credits</span>
             <span className="budget-value">
               {budget.spent} / {budget.total}
             </span>
@@ -116,15 +131,9 @@ export function Nav({
           </div>
         </div>
 
-        <button className="sidebar-restart" onClick={onRestart}>
-          ⟳ Restart runtime
+        <button type="button" className="sidebar-restart" onClick={onRestart}>
+          Restart runtime
         </button>
-
-        <div className="sidebar-note">
-          Electron shell · JSON-lines bridge
-          <br />
-          Qwen via HIVE leader
-        </div>
       </div>
     </aside>
   );

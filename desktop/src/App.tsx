@@ -9,6 +9,7 @@ import { InboxScreen } from './components/Inbox';
 import { CalendarScreen } from './components/Calendar';
 import { TasksScreen } from './components/Tasks';
 import { MissionsScreen } from './components/Missions';
+import { EggToast } from './components/EggToast';
 import type {
   AgentState,
   Budget,
@@ -58,6 +59,14 @@ export default function App() {
   const [apiKeyIssue, setApiKeyIssue] = useState(false);
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [eggMessage, setEggMessage] = useState<string | null>(null);
+  const eggTimer = useRef<number | null>(null);
+
+  const showEgg = useCallback((message: string) => {
+    if (eggTimer.current !== null) window.clearTimeout(eggTimer.current);
+    setEggMessage(message);
+    eggTimer.current = window.setTimeout(() => setEggMessage(null), 3200);
+  }, []);
 
   const streamBuffer = useRef('');
   const flushTimer = useRef<number | null>(null);
@@ -401,6 +410,17 @@ export default function App() {
       const value = text.trim();
       if (!value || processing || connected !== 'connected') return;
 
+      const secret = value.toLowerCase();
+      if (secret === 'buzz' || secret === 'nectar' || secret === 'queen') {
+        const lines: Record<string, string> = {
+          buzz: 'Wings up. The colony heard that.',
+          nectar: 'Credits are nectar. Spend them wisely.',
+          queen: 'HiveCore is the queen — specialists are the comb.',
+        };
+        showEgg(lines[secret]);
+        return;
+      }
+
       setTask(value);
       setProcessing(true);
       setStatus('routing');
@@ -421,7 +441,7 @@ export default function App() {
       pushEvent('user', 'You', value);
       window.hive.send({ type: 'user_message', content: value });
     },
-    [connected, processing, pushEvent]
+    [connected, processing, pushEvent, showEgg]
   );
 
   const ask = useCallback(
@@ -489,6 +509,7 @@ export default function App() {
         connected={connected}
         budget={budget}
         onRestart={restart}
+        onEgg={showEgg}
       />
 
       <div className="workspace">
@@ -592,6 +613,8 @@ export default function App() {
           processing={processing}
         />
       </div>
+
+      <EggToast message={eggMessage} />
     </div>
   );
 }

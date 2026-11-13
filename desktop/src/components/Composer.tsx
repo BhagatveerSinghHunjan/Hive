@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ConnectionState } from '../types';
 
 interface ComposerProps {
@@ -10,6 +10,14 @@ interface ComposerProps {
 
 export function Composer({ onSubmit, disabled, connected, processing }: ComposerProps) {
   const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [value]);
 
   const submit = () => {
     const text = value.trim();
@@ -20,9 +28,12 @@ export function Composer({ onSubmit, disabled, connected, processing }: Composer
 
   return (
     <div className="composer-wrap">
-      <div className="composer">
-        <div className="composer-prefix">›</div>
+      <div className={`composer ${disabled ? 'is-disabled' : ''}`}>
+        <span className="composer-prefix" aria-hidden>
+          ⬡
+        </span>
         <textarea
+          ref={inputRef}
           className="composer-input"
           rows={1}
           value={value}
@@ -31,8 +42,8 @@ export function Composer({ onSubmit, disabled, connected, processing }: Composer
             connected !== 'connected'
               ? 'Waiting for the Python runtime…'
               : processing
-                ? 'HIVE is working — watch the monitor…'
-                : 'Give HIVE a mission. Enter to send, Shift+Enter for a new line.'
+                ? 'HIVE is working…'
+                : 'Ask HIVE to run a task…'
           }
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
@@ -42,7 +53,12 @@ export function Composer({ onSubmit, disabled, connected, processing }: Composer
             }
           }}
         />
-        <button className="send-btn" disabled={disabled || !value.trim()} onClick={submit}>
+        <button
+          type="button"
+          className="send-btn"
+          disabled={disabled || !value.trim()}
+          onClick={submit}
+        >
           {processing ? 'Running' : 'Send'}
         </button>
       </div>
@@ -50,11 +66,10 @@ export function Composer({ onSubmit, disabled, connected, processing }: Composer
         <span>
           {connected === 'connected'
             ? processing
-              ? 'Execution in progress · approvals may interrupt'
-              : 'Ready · leader routes single vs swarm automatically'
+              ? 'Execution in progress'
+              : 'Enter to send · Shift+Enter for a new line'
             : 'Runtime offline · restart from the sidebar'}
         </span>
-        <span>Enter to send · Shift+Enter newline</span>
       </div>
     </div>
   );

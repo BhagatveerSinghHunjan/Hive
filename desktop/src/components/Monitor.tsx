@@ -13,53 +13,64 @@ interface MonitorProps {
 
 export function Monitor({ events, agents, toolCalls, streamText, processing, logs }: MonitorProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [events.length, streamText]);
 
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [logs.length]);
+
   return (
     <div className="monitor">
-      <div className="monitor-main">
-        <div className="page-head compact-head">
-          <div>
-            <h1>Execution monitor</h1>
-            <p>Every tool call, agent transition, and approval request in one trail.</p>
-          </div>
-          <div className="monitor-live">
-            <span className={`live-dot ${processing ? 'busy' : ''}`} />
-            {processing ? 'run in progress' : 'listening'}
-          </div>
+      <div className="page-head compact-head">
+        <div>
+          <h1>Execution monitor</h1>
+          <p>Every tool call, agent transition, and approval request in one trail.</p>
         </div>
-
-        <div className={`stream-box ${streamText ? 'has-text' : ''}`}>
-          <div className="stream-head">
-            <span>Live output</span>
-            <span className="stream-count">{streamText.length.toLocaleString()} chars</span>
-          </div>
-          <div className="stream-text">
-            {streamText || (processing ? 'Waiting for the first token…' : 'No active stream. Send a mission to start.')}
-            {processing && <span className="cursor">▋</span>}
-          </div>
+        <div className="monitor-live">
+          <span className={`live-dot ${processing ? 'busy' : ''}`} />
+          {processing ? 'run in progress' : 'listening'}
         </div>
+      </div>
 
-        <div className="timeline" ref={scrollRef}>
+      <section className={`stream-box ${streamText ? 'has-text' : ''}`}>
+        <div className="stream-head">
+          <span>Live output</span>
+          <span className="stream-count">{streamText.length.toLocaleString()} chars</span>
+        </div>
+        <div className="stream-text">
+          {streamText ||
+            (processing ? 'Waiting for the first token…' : 'No active stream. Send a task to start.')}
+          {processing && <span className="cursor">▋</span>}
+        </div>
+      </section>
+
+      <section className="timeline panel" ref={scrollRef}>
+        <div className="panel-head">
+          <span className="card-label">Timeline</span>
+          <span className="panel-meta">{events.length} events</span>
+        </div>
+        <div className="panel-body">
           {events.length === 0 ? (
-            <div className="empty">
+            <div className="empty quiet">
               The timeline is empty. Send a task from the composer to watch the hive work.
             </div>
           ) : (
             events.map((event) => <EventRow key={event.id} event={event} />)
           )}
         </div>
-      </div>
+      </section>
 
       <aside className="rail">
         <section className="rail-card">
           <div className="card-label">Agents</div>
           {agents.length === 0 ? (
-            <div className="empty small">No agents in this run.</div>
+            <div className="empty quiet">No agents in this run.</div>
           ) : (
             <div className="rail-list">
               {agents.map((agent) => (
@@ -78,7 +89,7 @@ export function Monitor({ events, agents, toolCalls, streamText, processing, log
         <section className="rail-card">
           <div className="card-label">Tool calls</div>
           {toolCalls.length === 0 ? (
-            <div className="empty small">No tool calls yet.</div>
+            <div className="empty quiet">No tool calls yet.</div>
           ) : (
             <div className="rail-list">
               {toolCalls
@@ -100,12 +111,15 @@ export function Monitor({ events, agents, toolCalls, streamText, processing, log
         </section>
 
         <section className="rail-card rail-logs">
-          <div className="card-label">Runtime log</div>
+          <div className="panel-head">
+            <span className="card-label">Runtime log</span>
+            <span className="panel-meta">{logs.length} lines</span>
+          </div>
           {logs.length === 0 ? (
-            <div className="empty small">No runtime output yet.</div>
+            <div className="empty quiet">No runtime output yet.</div>
           ) : (
-            <div className="log-lines">
-              {logs.slice(-18).map((line, index) => (
+            <div className="log-lines" ref={logRef}>
+              {logs.slice(-40).map((line, index) => (
                 <div key={`${index}-${line.slice(0, 20)}`} className="log-line">
                   {line}
                 </div>
