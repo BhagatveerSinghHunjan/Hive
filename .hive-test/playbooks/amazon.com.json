@@ -1,12 +1,14 @@
 {
+  "schema_version": 2,
+  "site": "amazon.com",
   "trust_score": 10,
+  "trust_level": 0,
   "sessions": {},
   "login": {},
   "signup": {},
   "checkout": {
-    "last_failure_at": 1783533832.0316176
+    "last_failure_at": 1794608636.090496
   },
-  "schema_version": 1,
-  "site": "amazon.com",
-  "updated_at": 1783533832.0316176
+  "flows": {},
+  "updated_at": 1794608636.0905228
 }

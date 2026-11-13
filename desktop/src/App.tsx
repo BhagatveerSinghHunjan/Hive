@@ -5,6 +5,10 @@ import { Dashboard } from './components/Dashboard';
 import { Monitor } from './components/Monitor';
 import { Approvals } from './components/Approvals';
 import { Composer } from './components/Composer';
+import { InboxScreen } from './components/Inbox';
+import { CalendarScreen } from './components/Calendar';
+import { TasksScreen } from './components/Tasks';
+import { MissionsScreen } from './components/Missions';
 import type {
   AgentState,
   Budget,
@@ -12,7 +16,9 @@ import type {
   ConnectionState,
   HiveEvent,
   InteractivePromptRequest,
+  OverviewData,
   PermissionRequest,
+  RequestFn,
   TimelineEvent,
   ToolCall,
 } from './types';
@@ -24,9 +30,10 @@ function nextId(): string {
 }
 
 const QUICK_PROMPTS = [
-  'List the files in this repo and summarize the structure.',
-  'Create a file called hive-demo.md with a 5-line summary of HIVE.',
-  'Review this repo for security risks and summarize the top 3.',
+  'Triage my unread inbox and draft replies for anything urgent.',
+  'Prep me for my next club meeting using my calendar and email.',
+  'Remind sponsors about outstanding deliverables — draft the emails first.',
+  'Give me my morning brief: agenda, unread email, and tasks due soon.',
 ];
 
 export default function App() {
@@ -49,9 +56,46 @@ export default function App() {
   const [processing, setProcessing] = useState(false);
   const [runtimeExit, setRuntimeExit] = useState<string | null>(null);
   const [apiKeyIssue, setApiKeyIssue] = useState(false);
+  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const streamBuffer = useRef('');
   const flushTimer = useRef<number | null>(null);
+  const pendingRequests = useRef(
+    new Map<string, { resolve: (data: any) => void; timer: number }>()
+  );
+  const connectedRef = useRef<ConnectionState>('connecting');
+
+  useEffect(() => {
+    connectedRef.current = connected;
+  }, [connected]);
+
+  const request = useCallback<RequestFn>((action, params = {}) => {
+    return new Promise((resolve, reject) => {
+      if (connectedRef.current !== 'connected') {
+        reject(new Error('Python runtime is not connected.'));
+        return;
+      }
+      const requestId = nextId();
+      const timer = window.setTimeout(() => {
+        pendingRequests.current.delete(requestId);
+        reject(new Error(`Request timed out: ${action}`));
+      }, 120000);
+      pendingRequests.current.set(requestId, { resolve, timer });
+      window.hive.send({ type: 'request', request_id: requestId, action, params });
+    });
+  }, []);
+
+  const loadOverview = useCallback(async () => {
+    try {
+      const data = await request('overview');
+      setOverview(
+        data && data.inbox && data.agenda && data.tasks ? (data as OverviewData) : null
+      );
+    } catch {
+      // overview failures surface inside the dashboard cards
+    }
+  }, [request]);
 
   const pushEvent = useCallback((kind: string, title: string, detail?: string) => {
     setEvents((prev) => {
@@ -84,13 +128,39 @@ export default function App() {
 
   useEffect(() => {
     const onEvent = (raw: HiveEvent) => {
+      if (raw.type === 'response' && typeof raw.request_id === 'string') {
+        const pending = pendingRequests.current.get(raw.request_id);
+        if (pending) {
+          window.clearTimeout(pending.timer);
+          pendingRequests.current.delete(raw.request_id);
+          pending.resolve(raw.data ?? { ok: raw.ok === true });
+          return;
+        }
+      }
+
       switch (raw.type) {
         case 'ready':
+          connectedRef.current = 'connected';
           setConnected('connected');
           setStatus('idle');
           setRuntimeExit(null);
           setApiKeyIssue(false);
           pushEvent('system', 'Runtime connected', 'Electron ↔ JSON-lines ↔ Python');
+          void loadOverview();
+          break;
+
+        case 'state':
+          setOverview((raw.state as OverviewData) ?? null);
+          break;
+
+        case 'tasks_updated':
+          setRefreshTick((value) => value + 1);
+          void loadOverview();
+          break;
+
+        case 'inbox_updated':
+          setRefreshTick((value) => value + 1);
+          void loadOverview();
           break;
 
         case 'stream': {
@@ -251,6 +321,7 @@ export default function App() {
       const detail = info?.error
         ? String(info.error)
         : `Python exited (code ${info?.code ?? '?'}${info?.signal ? `, ${info.signal}` : ''})`;
+      connectedRef.current = 'exited';
       setConnected('exited');
       setProcessing(false);
       setStatus('runtime exited');
@@ -268,8 +339,12 @@ export default function App() {
         window.clearInterval(flushTimer.current);
         flushTimer.current = null;
       }
+      for (const pending of pendingRequests.current.values()) {
+        window.clearTimeout(pending.timer);
+      }
+      pendingRequests.current.clear();
     };
-  }, [pushEvent, startStream, stopStream]);
+  }, [loadOverview, pushEvent, startStream, stopStream]);
 
   // Dev-only harness for UI smoke tests. Vite strips this from production builds.
   useEffect(() => {
@@ -349,7 +424,16 @@ export default function App() {
     [connected, processing, pushEvent]
   );
 
+  const ask = useCallback(
+    (text: string) => {
+      setScreen('monitor');
+      submit(text);
+    },
+    [submit]
+  );
+
   const restart = useCallback(async () => {
+    connectedRef.current = 'connecting';
     setConnected('connecting');
     setStatus('restarting');
     setRuntimeExit(null);
@@ -400,6 +484,8 @@ export default function App() {
         screen={screen}
         setScreen={setScreen}
         pendingApprovals={approvals.length + interactiveQueue.length}
+        inboxCount={overview?.inbox.count ?? 0}
+        taskCount={overview?.tasks.pending ?? 0}
         connected={connected}
         budget={budget}
         onRestart={restart}
@@ -454,8 +540,28 @@ export default function App() {
               latestAssistant={latestAssistant}
               processing={processing}
               quickPrompts={QUICK_PROMPTS}
+              overview={overview}
+              pendingApprovals={approvals.length + interactiveQueue.length}
+              onOpen={setScreen}
+              onRefresh={loadOverview}
               onSubmit={submit}
             />
+          )}
+
+          {screen === 'inbox' && (
+            <InboxScreen request={request} refreshKey={refreshTick} onNotify={pushEvent} />
+          )}
+
+          {screen === 'calendar' && (
+            <CalendarScreen request={request} refreshKey={refreshTick} onAsk={ask} />
+          )}
+
+          {screen === 'tasks' && (
+            <TasksScreen request={request} refreshKey={refreshTick} onNotify={pushEvent} />
+          )}
+
+          {screen === 'missions' && (
+            <MissionsScreen request={request} onNotify={pushEvent} onAsk={ask} />
           )}
 
           {screen === 'monitor' && (

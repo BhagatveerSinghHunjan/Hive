@@ -77,13 +77,17 @@ All intelligence runs through **Qwen Cloud (DashScope)** on Alibaba Cloud. The b
 - **4-round debate protocol** — proposer, skeptic, architect, guardian → judge verdict
 - **Credit economy** — finite budget forces better resource allocation
 - **Reputation & confidence** — accuracy and confidence shape trust and next steps
+- **Club Ops coordinator** — Gmail triage with drafts, Calendar agendas and meeting prep, local + Google Tasks, sponsor reminders, volunteer scheduling, and a daily brief
+- **Approval gate** — outbound email, calendar writes, and risky actions always wait for a human; trust never bypasses them
+- **VISION extras** — browser playbooks, per-domain trust ladder, digital-twin personas, and CAPTCHA handoff
+- **Desktop app** — Electron + React with Inbox, Calendar, Tasks, Missions, and rich approval cards
 - **Browser & tool workers** — web, security, code, reports, and more
 - **Qwen Cloud first** — OpenAI-compatible DashScope client in `hive/llm.py`
 - **Alibaba deploy** — Docker Compose + `hive.deploy_server` on port 8080
 
 ### How we built it
 
-Python agent runtime + SQLite persistence + Ink/React terminal UI option. LLM routing targets `dashscope-intl.aliyuncs.com/compatible-mode/v1` with models such as `qwen3.7-plus`. Deployment uses Alibaba Simple Application Server with Docker.
+Python agent runtime + SQLite persistence + Electron/React desktop and Ink terminal UI. The coordinator profile reads Gmail, Google Calendar, and Tasks through credential-safe adapters; workflows return proposed next actions, and every outbound action passes the same human approval gate. Playbooks record and replay browser flows with placeholder substitution and a per-domain trust ladder. LLM routing targets `dashscope-intl.aliyuncs.com/compatible-mode/v1` with models such as `qwen3.7-plus`. Deployment uses Alibaba Simple Application Server with Docker.
 
 ### What’s next
 

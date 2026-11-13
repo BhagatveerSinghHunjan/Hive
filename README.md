@@ -142,6 +142,15 @@ No more "Done." Every result returns: `confidence` (84%), `reason` (why), `sugge
 ### 7. Single vs Society Benchmark
 For every significant action, HIVE compares: how would a single agent handle this? How does the swarm? The win rate is measurable.
 
+### 8. Club Ops Coordinator (PS 2)
+A coordinator profile turns HIVE into a student-club chief of staff: Gmail triage with drafts, Google Calendar agendas and meeting prep, local + Google Tasks follow-ups, sponsor reminders, volunteer scheduling, and a morning brief. Outbound email and calendar events always stop at the approval gate. See [docs/CLUB_OPS.md](docs/CLUB_OPS.md).
+
+### 9. VISION Extras
+- **Playbooks** — record a browser flow once, replay it later with parameter placeholders.
+- **Trust ladder** — per-domain autonomy levels (0 ask → 3 autonomous safe/moderate), with outbound actions never auto-approved.
+- **Personas** — separate vault, browser profile, and spend caps for a digital twin.
+- **CAPTCHA handoff** — human solve by default; optional 2captcha provider.
+
 ---
 
 ## Running HIVE
@@ -155,9 +164,26 @@ cp .env.example .env
 # Edit .env — set DASHSCOPE_API_KEY (pay-as-you-go sk-... from home.qwencloud.com/api-keys)
 python scripts/verify_qwen_key.py
 
-python -m hive                 # interactive CLI
-python -m hive.cli --server    # JSON-lines server for Ink frontend
-python -m hive.deploy_server   # Alibaba proof endpoint on :8080
+python -m hive                          # interactive CLI
+python -m hive.cli --server             # JSON-lines server (desktop + Ink)
+python -m hive.cli --connect-google     # Gmail + Calendar + Tasks OAuth
+python -m hive.cli --check-integrations # credential-safe connector status
+python -m hive.cli --gmail-smoke        # live read-only Gmail smoke test
+python -m hive.deploy_server            # Alibaba proof endpoint on :8080
+```
+
+```bash
+# Desktop app (Electron + React)
+cd desktop
+npm install
+npm run build
+npm start
+
+# Ink terminal UI
+cd hive-frontend
+npm install
+npm run build
+npm start
 ```
 
 **Alibaba Cloud deploy (SAS + Docker):** see [DEPLOY.md](DEPLOY.md). Quick path:
@@ -217,6 +243,20 @@ Credentials and payment cards are stored in `~/.hive/vault/secrets.enc` (Fernet 
 | `HIVE_MAX_DAILY_SPEND` | `1000` | Daily spending cap |
 | `HIVE_CHECKOUT_ALLOWED_MERCHANTS` | (empty) | Domain allowlist |
 
+### Playbooks, trust, and personas
+
+```
+/playbooks                    # recorded flows + trust scores
+/trust example.com 2          # set domain trust level (0-3)
+/persona list                 # active and saved personas
+```
+
+Browser record/replay tools are exposed to the leader: `browser_record_start`,
+`browser_record_stop`, `browser_playbook_list`, `browser_playbook_show`,
+`browser_playbook_replay`, and `browser_playbook_forget`. Trust levels only
+relax approvals for safe navigation/read steps; checkout, signup, email sends,
+and calendar writes are always human-approved.
+
 ### CLI commands for browser
 
 ```
@@ -272,6 +312,8 @@ HiveCore (Queen): "Complete. 3 potential price anomalies found."
 - **Reputation system** — accuracy tracked, behavior adapts
 - **Single vs Society benchmarks** — provable improvement
 - **Live dashboard** — watch the hive work in real time
+- **Club Ops screens** — Inbox, Calendar, Tasks, and Missions in the desktop app
+- **Playbooks, trust ladder, personas, CAPTCHA handoff** — VISION extras included
 
 ---
 
@@ -300,9 +342,19 @@ HiveCore (Queen): "Complete. 3 potential price anomalies found."
 │   ├── config.py                # DASHSCOPE_API_KEY, QWEN_BASE_URL
 │   ├── core/                    # economy, debate, message bus, …
 │   ├── agents/                  # leader, forge, workers, …
+│   ├── integrations/            # Gmail, Calendar, Tasks, registry
+│   ├── workflows/               # club-ops workflows + tool adapters
+│   ├── browser/                 # recorder, replay, captcha, vault, checkout
+│   ├── missions.py              # built-in + custom missions
+│   ├── state_api.py             # credential-safe UI snapshots
+│   ├── playbooks.py             # schema v2 flows + trust scores
+│   ├── trust.py                 # per-domain autonomy ladder
+│   ├── personas.py              # digital-twin isolation
 │   └── …
+├── desktop/                     # Electron + React club-ops desktop
 ├── hive-frontend/               # Ink / React TUI
-└── tests/
+├── docs/CLUB_OPS.md             # PS 2 operator guide
+└── tests/                       # 99 tests (pytest)
 ```
 
 ---

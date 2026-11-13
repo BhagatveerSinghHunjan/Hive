@@ -1,23 +1,45 @@
 import type { Budget, ConnectionState } from '../types';
 
-export type Screen = 'dashboard' | 'monitor' | 'approvals';
+export type Screen =
+  | 'dashboard'
+  | 'inbox'
+  | 'calendar'
+  | 'tasks'
+  | 'missions'
+  | 'monitor'
+  | 'approvals';
 
 interface NavProps {
   screen: Screen;
   setScreen: (screen: Screen) => void;
   pendingApprovals: number;
+  inboxCount?: number;
+  taskCount?: number;
   connected: ConnectionState;
   budget: Budget;
   onRestart: () => void;
 }
 
-const ITEMS: Array<{ id: Screen; label: string; icon: string }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: '◈' },
-  { id: 'monitor', label: 'Execution Monitor', icon: '▤' },
-  { id: 'approvals', label: 'Approvals', icon: '✓' },
+const ITEMS: Array<{ id: Screen; label: string; icon: string; section: 'club' | 'system' }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: '◈', section: 'club' },
+  { id: 'inbox', label: 'Inbox', icon: '✉', section: 'club' },
+  { id: 'calendar', label: 'Calendar', icon: '▦', section: 'club' },
+  { id: 'tasks', label: 'Tasks', icon: '☑', section: 'club' },
+  { id: 'missions', label: 'Missions', icon: '✦', section: 'club' },
+  { id: 'monitor', label: 'Execution Monitor', icon: '▤', section: 'system' },
+  { id: 'approvals', label: 'Approvals', icon: '✓', section: 'system' },
 ];
 
-export function Nav({ screen, setScreen, pendingApprovals, connected, budget, onRestart }: NavProps) {
+export function Nav({
+  screen,
+  setScreen,
+  pendingApprovals,
+  inboxCount = 0,
+  taskCount = 0,
+  connected,
+  budget,
+  onRestart,
+}: NavProps) {
   const pct = Math.min(100, Math.round((budget.spent / Math.max(1, budget.total)) * 100));
 
   return (
@@ -31,8 +53,25 @@ export function Nav({ screen, setScreen, pendingApprovals, connected, budget, on
       </div>
 
       <nav className="nav">
-        <div className="nav-label">Workspace</div>
-        {ITEMS.map((item) => (
+        <div className="nav-label">Club ops</div>
+        {ITEMS.filter((item) => item.section === 'club').map((item) => {
+          const badge =
+            item.id === 'inbox' ? inboxCount : item.id === 'tasks' ? taskCount : 0;
+          return (
+            <button
+              key={item.id}
+              className={`nav-item ${screen === item.id ? 'active' : ''}`}
+              onClick={() => setScreen(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-text">{item.label}</span>
+              {badge > 0 && <span className="nav-badge">{badge}</span>}
+            </button>
+          );
+        })}
+
+        <div className="nav-label nav-label-spaced">System</div>
+        {ITEMS.filter((item) => item.section === 'system').map((item) => (
           <button
             key={item.id}
             className={`nav-item ${screen === item.id ? 'active' : ''}`}

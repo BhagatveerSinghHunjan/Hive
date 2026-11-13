@@ -5,8 +5,9 @@ import uuid
 import asyncio
 import time
 import json
+import shlex
 from hive import __version__
-from hive.config import LLM_MODEL, LLM_API_KEY, ensure_dirs
+from hive.config import LLM_MODEL, LLM_API_KEY, ensure_dirs, HIVE_AGENT_PROFILE
 from hive.storage import (
     init_db, get_db, create_session, end_session,
     add_message, list_sessions, list_agents, list_skills, audit_log,
@@ -33,7 +34,9 @@ SLASH_COMMANDS = [
     "/help", "/quit", "/exit", "/sessions", "/resume",
     "/agents", "/skills", "/model", "/clear", "/status", "/swarm",
     "/cleanup", "/create-agent", "/google-login", "/oauth",
-    "/mcp", "/ppt",
+    "/mcp", "/ppt", "/inbox", "/calendar", "/tasks", "/brief",
+    "/missions", "/mission", "/draft", "/integrations",
+    "/playbooks", "/trust", "/persona",
 ]
 
 TEST_MODE = False
@@ -78,6 +81,17 @@ def _print_help():
         "[prompt]/cleanup[/prompt]        Run agent garbage collection\n"
         "[prompt]/create-agent \\[task][/prompt]  Create a specialist agent\n"
         "[prompt]/ppt <topic>[/prompt]      Generate a polished PowerPoint deck\n"
+        "[prompt]/brief[/prompt]          Daily brief: agenda, inbox, tasks\n"
+        "[prompt]/inbox \\[query][/prompt]   Triage unread email\n"
+        "[prompt]/calendar \\[days][/prompt] Show upcoming events\n"
+        "[prompt]/tasks \\[add|done|sync|all][/prompt]  Manage tasks\n"
+        "[prompt]/missions[/prompt]       List club-ops missions\n"
+        "[prompt]/mission \\[name] [k=v][/prompt]  Run a mission\n"
+        "[prompt]/draft \\[thread_id][/prompt]  Draft a reply to a thread\n"
+        "[prompt]/integrations[/prompt]  Show connector status\n"
+        "[prompt]/playbooks[/prompt]      Learned site flows & trust\n"
+        "[prompt]/trust \\[domain] [0-3][/prompt]  Browser trust ladder\n"
+        "[prompt]/persona \\[list|use|create][/prompt]  Digital-twin personas\n"
         "[prompt]/mcp[/prompt]            Manage MCP servers (add, auth, tools)\n"
         "[prompt]/mcp auth \\[name][/prompt]    Authenticate OAuth MCP server\n"
         "[prompt]/google-login[/prompt]     Open browser for manual Google sign-in\n"
@@ -91,6 +105,51 @@ def _print_help():
         box=box.ROUNDED,
         padding=(1, 2),
     ))
+
+
+def _print_workflow_result(result: dict) -> None:
+    """Render a workflow result summary plus its proposed next actions."""
+    if not result.get("ok", True):
+        console.print(f"[bold red]{result.get('error', 'Workflow failed')}[/bold red]\n")
+        return
+    summary = result.get("summary") or result.get("error")
+    if summary:
+        console.print(Text(str(summary)))
+    actions = result.get("next_actions") or []
+    if actions:
+        table = _table("Next actions")
+        table.add_column("Tool", style="code")
+        table.add_column("Details", style="white", max_width=60)
+        table.add_column("Approval", style="dim")
+        for action in actions[:8]:
+            args = action.get("args") or {}
+            detail = (
+                args.get("subject")
+                or args.get("title")
+                or args.get("summary")
+                or args.get("to")
+                or args.get("name")
+                or ""
+            )
+            if args.get("due"):
+                detail = f"{detail} (due {args['due']})"
+            table.add_row(
+                action.get("tool", ""),
+                str(detail)[:90],
+                "required" if action.get("requires_approval") else "auto",
+            )
+        console.print(table)
+    console.print()
+
+
+def _parse_kv_args(tokens: list[str]) -> dict:
+    params = {}
+    for token in tokens:
+        if "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        params[key.strip()] = value.strip()
+    return params
 
 
 def _table(title: str) -> Table:
@@ -206,6 +265,11 @@ class HiveCLI:
 
     def __init__(self):
         ensure_dirs()
+        try:
+            from hive.personas import apply_active_persona
+            apply_active_persona()
+        except Exception:
+            pass
         self.session_id = str(uuid.uuid4())[:8]
         self.memory = ShortTermMemory()
         self.leader = None
@@ -228,14 +292,14 @@ class HiveCLI:
             await self.db.close()
             return
 
-        if not DASHSCOPE_API_KEY:
+        if not LLM_API_KEY:
             console.print("[bold red]Error:[/bold red] No API key found.")
             console.print("Set [bold]DASHSCOPE_API_KEY[/bold] in [dim].env[/dim] file")
             console.print("Or run with [prompt]--test[/prompt] flag to test without API\n")
             await self.db.close()
             return
 
-        llm = QwenClient(api_key=DASHSCOPE_API_KEY, model=LLM_MODEL)
+        llm = QwenClient(api_key=LLM_API_KEY, model=LLM_MODEL)
         self.leader = Leader(llm)
         _register_interactive_handlers()
 
@@ -366,7 +430,16 @@ class HiveCLI:
         refresh_task = asyncio.create_task(refresh_loop())
         
         try:
-            response = await self.leader._run_swarm_task(text)
+            if HIVE_AGENT_PROFILE == "coordinator":
+                response = await self.leader.handle_message(
+                    text,
+                    session_id=session_id,
+                    memory=memory,
+                    db=db,
+                    on_permission=self._on_permission,
+                )
+            else:
+                response = await self.leader._run_swarm_task(text)
         finally:
             refresh_task.cancel()
             try:
@@ -379,6 +452,20 @@ class HiveCLI:
         live.update(layout)
         
         return response
+
+    async def _on_permission(self, tool_name: str, target: str, tier: str) -> str:
+        """Interactive approval prompt for sensitive tool calls."""
+        label = target or tool_name
+        detail = f"{tool_name} · {tier}"
+        if target:
+            detail += f" · {target}"
+        console.print(f"\n[bold yellow]Approval needed:[/bold yellow] {detail}")
+        if tier == "dangerous":
+            console.print("[bold red]This is a destructive action.[/bold red]")
+        allowed = await asyncio.to_thread(
+            Confirm.ask, f"Allow {label}?", default=False
+        )
+        return "approved" if allowed else "denied"
 
     async def _handle_command(self, cmd: str):
         parts = cmd.split(maxsplit=1)
@@ -623,6 +710,187 @@ class HiveCLI:
                 console.print(f"[success]Presentation created![/success] {result}\n")
             except Exception as e:
                 console.print(f"[bold red]Error:[/bold red] {e}\n")
+
+        elif command == "/brief":
+            from hive.workflows.club_ops import daily_brief
+            with console.status("[thinking]Building daily brief...[/thinking]", spinner="dots"):
+                result = await daily_brief()
+            _print_workflow_result(result)
+
+        elif command == "/inbox":
+            from hive.state_api import format_inbox_text, inbox
+            query = arg.strip() or "is:unread newer_than:14d"
+            with console.status("[thinking]Triaging inbox...[/thinking]", spinner="dots"):
+                result = await inbox(20, query)
+            console.print(Text(format_inbox_text(result)))
+            console.print()
+
+        elif command == "/calendar":
+            from hive.state_api import agenda, format_agenda_text
+            try:
+                days = int(arg.strip()) if arg.strip() else 7
+            except ValueError:
+                days = 7
+            with console.status("[thinking]Loading calendar...[/thinking]", spinner="dots"):
+                result = await agenda(days)
+            console.print(Text(format_agenda_text(result)))
+            console.print()
+
+        elif command == "/tasks":
+            from hive.integrations import tasks as tasks_module
+            from hive.state_api import add_task, complete_task, format_tasks_text, tasks_snapshot
+            parts = arg.split(maxsplit=1)
+            subcommand = parts[0].lower() if parts else "list"
+            rest = parts[1].strip() if len(parts) > 1 else ""
+            if subcommand == "add":
+                if not rest:
+                    console.print("[bold yellow]Usage:[/bold yellow] /tasks add <title>\n")
+                    return
+                result = await add_task(rest)
+                if result.get("ok"):
+                    console.print(f"[success]Task added:[/success] {result['task']['title']}\n")
+                else:
+                    console.print(f"[bold red]{result.get('error')}[/bold red]\n")
+            elif subcommand == "done":
+                if not rest:
+                    console.print("[bold yellow]Usage:[/bold yellow] /tasks done <task_id>\n")
+                    return
+                result = await complete_task(rest)
+                if result.get("ok"):
+                    console.print(f"[success]Task completed:[/success] {rest}\n")
+                else:
+                    console.print(f"[bold red]{result.get('error')}[/bold red]\n")
+            elif subcommand == "sync":
+                result = await asyncio.to_thread(tasks_module.sync)
+                console.print(Text(json.dumps(result, indent=2, default=str)))
+                console.print()
+            else:
+                include_all = subcommand == "all" or subcommand == "list-all"
+                result = await tasks_snapshot(include_all)
+                console.print(Text(format_tasks_text(result)))
+                console.print()
+
+        elif command == "/missions":
+            from hive.missions import format_missions_text
+            console.print(Text(format_missions_text()))
+            console.print()
+
+        elif command == "/mission":
+            from hive.missions import run_mission
+            tokens = shlex.split(arg) if arg.strip() else []
+            if not tokens:
+                console.print("[bold yellow]Usage:[/bold yellow] /mission <name> key=value ...\n")
+                return
+            name = tokens[0]
+            params = _parse_kv_args(tokens[1:])
+            with console.status(f"[thinking]Running mission {name}...[/thinking]", spinner="dots"):
+                result = await run_mission(name, params)
+            if not result.get("ok"):
+                console.print(f"[bold red]{result.get('error', 'Mission failed')}[/bold red]\n")
+                return
+            _print_workflow_result(result)
+
+        elif command == "/draft":
+            from hive.state_api import draft_reply
+            tokens = arg.split(maxsplit=1)
+            if not tokens:
+                console.print("[bold yellow]Usage:[/bold yellow] /draft <thread_id> [body]\n")
+                return
+            thread_id = tokens[0]
+            body = tokens[1] if len(tokens) > 1 else None
+            result = await draft_reply(thread_id, body)
+            if result.get("ok"):
+                console.print(
+                    f"[success]Draft created:[/success] {result.get('draft_id')} "
+                    "— review in Gmail before sending.\n"
+                )
+            else:
+                console.print(f"[bold red]{result.get('error', 'Draft failed')}[/bold red]\n")
+
+        elif command == "/integrations":
+            from hive.state_api import integrations
+            with console.status("[thinking]Checking integrations...[/thinking]", spinner="dots"):
+                result = await integrations(verify=True)
+            if not result.get("ok"):
+                console.print(f"[bold red]{result.get('error')}[/bold red]\n")
+                return
+            google = result.get("google") or {}
+            calendar_info = result.get("calendar") or {}
+            task_info = result.get("tasks") or {}
+            console.print(f"Google: {'connected' if google.get('connected') else 'not connected'}"
+                          + (f" ({google.get('email')})" if google.get("email") else ""))
+            console.print(f"Calendar: {'ready' if calendar_info.get('connected') else 'needs Google'}"
+                          f" · timezone {calendar_info.get('timezone')}")
+            console.print(f"Tasks: {task_info.get('pending', 0)} pending · mode {task_info.get('mode')}")
+            slack = result.get("slack") or {}
+            console.print(f"Slack: {'configured (status only)' if slack.get('configured') else 'not configured'}\n")
+
+        elif command == "/playbooks":
+            from hive.playbooks import list_playbooks
+            data = await asyncio.to_thread(list_playbooks)
+            if not data.get("playbooks"):
+                console.print("[dim]No playbooks learned yet.[/dim]\n")
+                return
+            table = _table("Site Playbooks")
+            table.add_column("Site", style="code")
+            table.add_column("Trust", style="dim")
+            table.add_column("Flows", style="white")
+            for pb in data["playbooks"]:
+                table.add_row(
+                    pb["site"],
+                    f"{pb.get('trust_score', 0)} (L{pb.get('trust_level', 0)})",
+                    ", ".join(pb.get("flows") or []) or "—",
+                )
+            console.print(table)
+            console.print()
+
+        elif command == "/trust":
+            from hive.trust import format_levels_text, set_level
+            tokens = arg.split()
+            if len(tokens) >= 2:
+                result = set_level(tokens[0], tokens[1])
+                if "error" in result:
+                    console.print(f"[bold red]{result['error']}[/bold red]\n")
+                else:
+                    console.print(
+                        f"[success]Trust updated:[/success] {result['domain']} → level {result['level']}\n"
+                    )
+            else:
+                console.print(Text(format_levels_text()))
+                console.print()
+
+        elif command == "/persona":
+            from hive.personas import (
+                create_persona, format_personas_text, use_persona,
+            )
+            tokens = arg.split(maxsplit=1)
+            subcommand = tokens[0].lower() if tokens else "list"
+            rest = tokens[1].strip() if len(tokens) > 1 else ""
+            if subcommand == "use":
+                if not rest:
+                    console.print("[bold yellow]Usage:[/bold yellow] /persona use <name>\n")
+                    return
+                result = use_persona(rest)
+                if "error" in result:
+                    console.print(f"[bold red]{result['error']}[/bold red]\n")
+                else:
+                    console.print(
+                        f"[success]Persona active:[/success] {result['persona']} "
+                        "(restart browser sessions to switch profiles)\n"
+                    )
+            elif subcommand == "create":
+                if not rest:
+                    console.print("[bold yellow]Usage:[/bold yellow] /persona create <name> [label]\n")
+                    return
+                parts = rest.split(maxsplit=1)
+                result = create_persona(parts[0], parts[1] if len(parts) > 1 else "")
+                if "error" in result:
+                    console.print(f"[bold red]{result['error']}[/bold red]\n")
+                else:
+                    console.print(f"[success]Persona created:[/success] {result['persona']}\n")
+            else:
+                console.print(Text(format_personas_text()))
+                console.print()
 
         else:
             console.print(f"[bold red]Error:[/bold red] Unknown command: [cyan]{command}[/cyan]\n")
@@ -1069,6 +1337,11 @@ class HiveServer:
 
     def __init__(self):
         ensure_dirs()
+        try:
+            from hive.personas import apply_active_persona
+            apply_active_persona()
+        except Exception:
+            pass
         self.session_id = str(uuid.uuid4())[:8]
         self.memory = ShortTermMemory()
         self.leader = None
@@ -1114,7 +1387,7 @@ class HiveServer:
         self.db = await get_db()
         await create_session(self.db, self.session_id, LLM_MODEL)
 
-        llm = QwenClient(api_key=DASHSCOPE_API_KEY, model=LLM_MODEL)
+        llm = QwenClient(api_key=LLM_API_KEY, model=LLM_MODEL)
         self.leader = Leader(llm)
 
         # Register interactive handlers for the Ink frontend.
@@ -1133,6 +1406,7 @@ class HiveServer:
         self._startup_tasks = [
             asyncio.create_task(self._send_integration_status()),
             asyncio.create_task(self._init_mcp()),
+            asyncio.create_task(self._send_initial_state()),
         ]
 
         # Start message reader task
@@ -1167,6 +1441,190 @@ class HiveServer:
                 "type": "integration_status",
                 "integrations": {"error": str(exc)},
             })
+
+    async def _send_initial_state(self) -> None:
+        """Send an overview snapshot once connectors are discovered."""
+        try:
+            from hive.state_api import overview
+            data = await overview()
+            self._send({"type": "state", "state": data})
+        except Exception:
+            # The UI can always request state explicitly.
+            pass
+
+    async def _handle_request(self, msg: dict) -> None:
+        """Handle a request/response action from the desktop shell."""
+        request_id = msg.get("request_id", "")
+        action = (msg.get("action") or "").strip()
+        params = msg.get("params") or {}
+
+        try:
+            from hive.state_api import (
+                add_task, agenda, complete_task, draft_reply, inbox,
+                integrations, missions, overview, tasks_snapshot,
+            )
+
+            if action == "overview":
+                data = await overview()
+            elif action == "inbox":
+                data = await inbox(
+                    int(params.get("limit", 20)),
+                    params.get("query") or "is:unread newer_than:14d",
+                )
+            elif action == "agenda":
+                data = await agenda(int(params.get("days", 7)))
+            elif action == "tasks":
+                data = await tasks_snapshot(bool(params.get("include_completed", False)))
+            elif action == "missions":
+                data = await missions()
+            elif action == "mission_run":
+                from hive.missions import run_mission
+                data = await run_mission(
+                    params.get("name", ""), params.get("params") or params
+                )
+            elif action == "integrations":
+                data = await integrations(bool(params.get("verify", False)))
+            elif action == "task_add":
+                data = await add_task(
+                    params.get("title", ""),
+                    params.get("due"),
+                    params.get("priority", "medium"),
+                    params.get("notes", ""),
+                )
+            elif action == "task_complete":
+                data = await complete_task(params.get("task_id", ""))
+            elif action == "draft_reply":
+                data = await draft_reply(
+                    params.get("thread_id", ""),
+                    params.get("body"),
+                    params.get("to"),
+                    params.get("subject"),
+                )
+            elif action == "brief":
+                from hive.workflows.club_ops import daily_brief
+                data = await daily_brief(int(params.get("days", 1)))
+            elif action == "triage":
+                from hive.workflows.club_ops import triage_inbox
+                data = await triage_inbox(
+                    params.get("query", "is:unread newer_than:7d"),
+                    int(params.get("max_results", 20)),
+                )
+            else:
+                data = {"ok": False, "error": f"Unknown action: {action}"}
+        except Exception as exc:
+            data = {"ok": False, "error": str(exc)[:400]}
+
+        self._send({
+            "type": "response",
+            "request_id": request_id,
+            "ok": data.get("ok", "error" not in data),
+            "data": data,
+        })
+
+        if action in ("task_add", "task_complete"):
+            self._send({
+                "type": "tasks_updated",
+                "tasks": data.get("tasks", []),
+            })
+        elif action == "draft_reply" and data.get("ok"):
+            self._send({"type": "inbox_updated"})
+
+    async def _handle_server_slash(self, text: str) -> str:
+        """Slash-command support for server/desktop sessions."""
+        import shlex
+
+        tokens = shlex.split(text)
+        command = tokens[0].lower() if tokens else ""
+        args = tokens[1:]
+
+        try:
+            from hive.state_api import (
+                agenda, complete_task, format_agenda_text, format_inbox_text,
+                format_tasks_text, inbox, integrations, tasks_snapshot, add_task,
+            )
+
+            if command in ("/help", "/commands"):
+                return (
+                    "/brief — daily brief\n/inbox [query] — triage unread email\n"
+                    "/calendar [days] — upcoming events\n/tasks [add|done|sync|all]\n"
+                    "/missions — list missions\n/mission <name> key=value\n"
+                    "/draft <thread_id> — draft a reply\n/integrations — connector status"
+                )
+            if command == "/brief":
+                from hive.workflows.club_ops import daily_brief
+                result = await daily_brief()
+                return result.get("summary") or result.get("error", "No brief")
+            if command == "/inbox":
+                query = " ".join(args) or "is:unread newer_than:14d"
+                return format_inbox_text(await inbox(20, query))
+            if command == "/calendar":
+                try:
+                    days = int(args[0]) if args else 7
+                except ValueError:
+                    days = 7
+                return format_agenda_text(await agenda(days))
+            if command == "/tasks":
+                sub = (args[0].lower() if args else "list")
+                rest = " ".join(args[1:]) if len(args) > 1 else ""
+                if sub == "add" and rest:
+                    result = await add_task(rest)
+                    if result.get("ok"):
+                        return f"Task added: {result['task']['title']}"
+                    return result.get("error", "Task failed")
+                if sub == "done" and rest:
+                    result = await complete_task(rest)
+                    if result.get("ok"):
+                        self._send({"type": "tasks_updated", "tasks": result.get("tasks", [])})
+                        return f"Task completed: {rest}"
+                    return result.get("error", "Task failed")
+                if sub == "sync":
+                    from hive.integrations import tasks as tasks_module
+                    result = await asyncio.to_thread(tasks_module.sync)
+                    self._send({"type": "tasks_updated", "tasks": (await tasks_snapshot()).get("tasks", [])})
+                    return json.dumps(result, indent=2, default=str)
+                return format_tasks_text(await tasks_snapshot(sub == "all"))
+            if command == "/missions":
+                from hive.missions import format_missions_text
+                return format_missions_text()
+            if command == "/mission":
+                from hive.missions import run_mission
+                if not args:
+                    return "Usage: /mission <name> key=value ..."
+                params = _parse_kv_args(args[1:])
+                result = await run_mission(args[0], params)
+                if not result.get("ok"):
+                    return result.get("error", "Mission failed")
+                lines = [result.get("summary", "")]
+                for action in result.get("next_actions", [])[:5]:
+                    tool = action.get("tool", "")
+                    detail = action.get("args", {}).get("title") or action.get("args", {}).get("subject", "")
+                    lines.append(f"- next: {tool} {detail}".strip())
+                return "\n".join(lines)
+            if command == "/draft":
+                from hive.state_api import draft_reply
+                if not args:
+                    return "Usage: /draft <thread_id> [body]"
+                body = " ".join(args[1:]) if len(args) > 1 else None
+                result = await draft_reply(args[0], body)
+                if result.get("ok"):
+                    return f"Draft created: {result.get('draft_id')} — review before sending."
+                return result.get("error", "Draft failed")
+            if command == "/integrations":
+                result = await integrations(verify=True)
+                if not result.get("ok"):
+                    return result.get("error", "Integrations unavailable")
+                google = result.get("google") or {}
+                task_info = result.get("tasks") or {}
+                return (
+                    f"Google: {'connected' if google.get('connected') else 'not connected'}"
+                    + (f" ({google.get('email')})" if google.get("email") else "")
+                    + f"\nTasks: {task_info.get('pending', 0)} pending ({task_info.get('mode', 'local')})"
+                    + f"\nSlack: {'configured (status only)' if (result.get('slack') or {}).get('configured') else 'not configured'}"
+                )
+        except Exception as exc:
+            return f"Command failed: {exc}"
+
+        return f"Unknown command: {command}. Try /help."
 
     async def _init_mcp(self) -> None:
         """Connect configured MCP servers without blocking startup.
@@ -1333,7 +1791,13 @@ class HiveServer:
                 content = msg.get("content", "")
                 if content.strip():
                     # Handle in background so we can keep reading messages
-                    asyncio.create_task(self._handle_user_message(content))
+                    if content.lstrip().startswith("/"):
+                        asyncio.create_task(self._handle_server_slash_command(content))
+                    else:
+                        asyncio.create_task(self._handle_user_message(content))
+
+            elif msg_type == "request":
+                asyncio.create_task(self._handle_request(msg))
 
             elif msg_type == "permission_response":
                 # Route to waiting permission handler
@@ -1349,6 +1813,11 @@ class HiveServer:
                 future = self._pending_interactive.pop(request_id, None)
                 if future and not future.done():
                     future.set_result(result)
+
+    async def _handle_server_slash_command(self, text: str):
+        """Run a slash command and send the textual result to the frontend."""
+        response = await self._handle_server_slash(text)
+        self._send({"type": "response", "content": response})
 
     async def _handle_user_message(self, text: str):
         """Process a user message and stream results back."""

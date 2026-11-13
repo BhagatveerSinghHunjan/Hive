@@ -3,8 +3,10 @@ import type {
   Budget,
   ChatMessage,
   ConnectionState,
+  OverviewData,
   TimelineEvent,
 } from '../types';
+import type { Screen } from './Nav';
 import { EventRow } from './EventRow';
 
 interface DashboardProps {
@@ -21,6 +23,10 @@ interface DashboardProps {
   latestAssistant?: ChatMessage;
   processing: boolean;
   quickPrompts: string[];
+  overview: OverviewData | null;
+  pendingApprovals: number;
+  onOpen: (screen: Screen) => void;
+  onRefresh: () => void;
   onSubmit: (text: string) => void;
 }
 
@@ -38,6 +44,10 @@ export function Dashboard({
   latestAssistant,
   processing,
   quickPrompts,
+  overview,
+  pendingApprovals,
+  onOpen,
+  onRefresh,
   onSubmit,
 }: DashboardProps) {
   const pct = Math.min(100, Math.round((budget.spent / Math.max(1, budget.total)) * 100));
@@ -119,6 +129,68 @@ export function Dashboard({
         </section>
 
         <section className="card span-8">
+          <div className="card-row">
+            <div className="card-label">Club ops snapshot</div>
+            <button className="ghost-btn" onClick={onRefresh}>
+              Refresh
+            </button>
+          </div>
+          {overview ? (
+            <>
+              <div className="ops-stats">
+                <button className="ops-stat" onClick={() => onOpen('inbox')}>
+                  <span className="ops-stat-value">{overview.inbox.count}</span>
+                  <span className="ops-stat-label">unread email</span>
+                </button>
+                <button className="ops-stat" onClick={() => onOpen('tasks')}>
+                  <span className="ops-stat-value">{overview.tasks.pending}</span>
+                  <span className="ops-stat-label">pending tasks</span>
+                </button>
+                <button className="ops-stat" onClick={() => onOpen('calendar')}>
+                  <span className="ops-stat-value">{overview.agenda.count}</span>
+                  <span className="ops-stat-label">events ahead</span>
+                </button>
+                <button className="ops-stat" onClick={() => onOpen('missions')}>
+                  <span className="ops-stat-value">{overview.missions}</span>
+                  <span className="ops-stat-label">missions</span>
+                </button>
+              </div>
+              <div className="kv">
+                <span>Next meeting</span>
+                <span>
+                  {overview.agenda.next
+                    ? `${overview.agenda.next.summary} · ${overview.agenda.next.start}`
+                    : 'No events on the calendar'}
+                </span>
+              </div>
+              <div className="connector-row">
+                <span className={`connection-chip ${overview.connections.google_connected ? 'on' : ''}`}>
+                  <span className="status-dot" />
+                  Google {overview.connections.google_connected ? 'connected' : 'not connected'}
+                </span>
+                {overview.connections.google_email && (
+                  <span className="connection-email">{overview.connections.google_email}</span>
+                )}
+                <span className={`connection-chip ${overview.connections.slack_configured ? 'on' : ''}`}>
+                  <span className="status-dot" />
+                  Slack {overview.connections.slack_configured ? 'configured' : 'off'}
+                </span>
+                {overview.timezone && <span className="connection-email">{overview.timezone}</span>}
+              </div>
+              {(overview.inbox.needs_auth || overview.agenda.needs_auth) && (
+                <div className="card-foot">
+                  Google needs authorization. Run <code>python -m hive.cli --connect-google</code>.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="empty small">
+              Waiting for the runtime snapshot. Club ops data loads when the Python server is live.
+            </div>
+          )}
+        </section>
+
+        <section className="card span-8">
           <div className="card-label">Active agents</div>
           {activeAgents.length === 0 ? (
             <div className="empty small">
@@ -143,6 +215,20 @@ export function Dashboard({
               {agents.length - activeAgents.length} recent agent{agents.length - activeAgents.length === 1 ? '' : 's'} completed.
             </div>
           )}
+        </section>
+
+        <section className="card span-4">
+          <div className="card-label">Approval gate</div>
+          <div className="big-number">
+            {pendingApprovals}
+            <span className="big-number-sub"> waiting</span>
+          </div>
+          <p className="card-copy">
+            Outbound email, calendar invites, and risky tool calls always stop for a human.
+          </p>
+          <button className="btn btn-approve" onClick={() => onOpen('approvals')}>
+            Open approvals
+          </button>
         </section>
 
         <section className="card span-6">

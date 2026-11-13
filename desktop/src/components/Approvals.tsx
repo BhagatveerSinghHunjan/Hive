@@ -8,6 +8,45 @@ interface ApprovalsProps {
   onInteractive: (requestId: string, result: unknown) => void;
 }
 
+const TOOL_INFO: Record<string, { label: string; note: string }> = {
+  gmail_create_draft: {
+    label: 'Create Gmail draft',
+    note: 'Draft only — nothing is sent until you send it from Gmail or approve a send.',
+  },
+  gmail_send_draft: {
+    label: 'Send Gmail draft',
+    note: 'This will deliver an email to the recipient shown above.',
+  },
+  gmail_send_message: {
+    label: 'Send Gmail message',
+    note: 'This will deliver an email to the recipient shown above.',
+  },
+  calendar_create_event: {
+    label: 'Create calendar event',
+    note: 'Attendees will receive an invite for the event shown above.',
+  },
+  calendar_update_event: {
+    label: 'Update calendar event',
+    note: 'This changes an existing event. Attendees may be notified.',
+  },
+  calendar_delete_event: {
+    label: 'Delete calendar event',
+    note: 'This removes an event and may notify attendees.',
+  },
+  browser_playbook_replay: {
+    label: 'Replay a browser playbook',
+    note: 'Trust level decides whether this step needs approval for the site shown above.',
+  },
+  checkout_confirm: {
+    label: 'Confirm purchase',
+    note: 'Review the merchant and amount before approving.',
+  },
+};
+
+function toolInfo(tool: string) {
+  return TOOL_INFO[tool] ?? { label: tool, note: 'Review the target carefully before approving.' };
+}
+
 function tierClass(tier: string): string {
   const value = tier.toLowerCase();
   if (value === 'dangerous') return 'tier-dangerous';
@@ -23,23 +62,27 @@ function PermissionCard({
   request: PermissionRequest;
   onDecision: (requestId: string, decision: 'approved' | 'denied') => void;
 }) {
+  const info = toolInfo(request.tool);
+
   return (
     <article className="approval-card">
       <div className="approval-head">
         <div>
           <div className="card-label">Permission request</div>
-          <h3>{request.tool}</h3>
+          <h3>{info.label}</h3>
+          <div className="approval-tool">{request.tool}</div>
         </div>
         <span className={`tier-badge ${tierClass(request.tier)}`}>{request.tier}</span>
       </div>
 
       <div className="approval-target">
-        <span>Target</span>
+        <span>Prepared change</span>
         <code>{request.target || '(no target)'}</code>
       </div>
 
+      <p className="approval-copy">{info.note}</p>
       <p className="approval-copy">
-        HIVE wants to run this tool. Approve only if the target and tier look right. The runtime waits up to 120 seconds.
+        Approve only if the target and tier look right. The runtime waits up to 120 seconds.
       </p>
 
       <div className="approval-actions">

@@ -19,7 +19,17 @@ from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
 
-VAULT_DIR = Path(os.environ.get("HIVE_HOME", Path.home() / ".hive")) / "vault"
+_hive_home = Path(os.environ.get("HIVE_HOME", Path.home() / ".hive"))
+VAULT_DIR = _hive_home / "vault"
+try:
+    # Active digital-twin persona gets an isolated vault.
+    from hive.personas import active_persona as _active_persona
+
+    _persona = _active_persona()
+    if _persona.get("name") not in (None, "", "default") and _persona.get("vault_dir"):
+        VAULT_DIR = Path(_persona["vault_dir"]).expanduser()
+except Exception:
+    pass
 VAULT_FILE = VAULT_DIR / "secrets.enc"
 KEYRING_SERVICE = "hive-os"
 KEYRING_USER = "vault-key"

@@ -1034,9 +1034,11 @@ python -m hive
 | CLI CAPTCHA handoff | **Done** — press Enter after solving |
 | Google login helper | **Done** — `/google-login` + `browser_google_login` |
 | OAuth GitHub/Google | **Done** — `/oauth` + `browser_oauth` |
-| pytest CI | **Done** — `tests/` + `.github/workflows/ci.yml` |
-| Site playbooks (replay workflows) | Not started — see VISION.md |
-| Trust ladder per domain | Not started — see VISION.md |
-| Ink frontend confirm/2FA UI | Not started — CLI only |
-| CAPTCHA auto-solver | Not started — human handoff only |
+| pytest CI | **Done** — `tests/` + `.github/workflows/ci.yml` + desktop/frontend builds |
+| Site playbooks (replay workflows) | **Done** — schema v2 + `browser_record_*` / `browser_playbook_*` |
+| Trust ladder per domain | **Done** — `hive/trust.py` + `/trust` (outbound never auto) |
+| Personas / digital twins | **Done** — `hive/personas.py` + `/persona` |
+| Club Ops coordinator (PS 2) | **Done** — Gmail write, Calendar, Tasks, missions, desktop screens |
+| Ink frontend confirm/2FA UI | Partial — desktop Approvals screen; Ink still CLI-forwarded |
+| CAPTCHA auto-solver | Optional — human handoff default; `2captcha` provider available |
 | Google/Amazon fully autonomous login | Expected limitation — use `/google-login` |

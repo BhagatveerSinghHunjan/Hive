@@ -15,6 +15,7 @@ import httpx
 from rich.console import Console
 from hive.permissions import check_url_access, check_path_access
 from hive.integrations.registry import INTEGRATION_TOOLS, run_integration_tool
+from hive.workflows.tools import WORKFLOW_TOOLS, run_workflow_tool
 
 console = Console()
 
@@ -440,8 +441,64 @@ TOOLS = {
     },
 }
 
-# Native integrations (Gmail for Phase 1; Calendar and Slack land next).
+# Native integrations (Gmail, Calendar, Tasks) and club-ops workflows.
 TOOLS.update(INTEGRATION_TOOLS)
+TOOLS.update(WORKFLOW_TOOLS)
+TOOLS.update({
+    "browser_record_start": {
+        "description": (
+            "Start recording browser actions into a replayable playbook flow. "
+            "Then perform the login/signup steps; stop with browser_record_stop."
+        ),
+        "parameters": {
+            "name": {"type": "string", "description": "Flow name (default: login)"},
+            "site": {"type": "string", "description": "Domain or URL (optional; inferred on navigation)"},
+            "note": {"type": "string", "description": "Optional note"},
+        },
+        "required": [],
+    },
+    "browser_record_stop": {
+        "description": "Stop recording and save the flow to the site playbook.",
+        "parameters": {
+            "save": {"type": "boolean", "description": "Set false to discard (default true)"},
+        },
+        "required": [],
+    },
+    "browser_playbook_list": {
+        "description": "List learned site playbooks with trust scores and recorded flows.",
+        "parameters": {},
+        "required": [],
+    },
+    "browser_playbook_show": {
+        "description": "Show playbook details for a site, or one recorded flow's steps.",
+        "parameters": {
+            "site": {"type": "string", "description": "Domain or URL"},
+            "flow": {"type": "string", "description": "Optional flow name"},
+        },
+        "required": ["site"],
+    },
+    "browser_playbook_replay": {
+        "description": (
+            "Replay a recorded browser flow. Requires sensitive_data for "
+            "${placeholder} values. Never use for checkout/signing without approval."
+        ),
+        "parameters": {
+            "site": {"type": "string", "description": "Domain or URL"},
+            "flow": {"type": "string", "description": "Flow name (default: login)"},
+            "session_id": {"type": "string", "description": "Optional browser session"},
+            "sensitive_data": {"type": "object", "description": "Values for ${key} placeholders"},
+        },
+        "required": ["site"],
+    },
+    "browser_playbook_forget": {
+        "description": "Delete one recorded flow (flow given) or an entire site playbook.",
+        "parameters": {
+            "site": {"type": "string", "description": "Domain or URL"},
+            "flow": {"type": "string", "description": "Flow to delete; omit to delete the playbook"},
+        },
+        "required": ["site"],
+    },
+})
 
 
 # ─── MCP Tool Registration ──────────────────────────────────────────────
@@ -679,6 +736,31 @@ async def execute_tool(tool_name: str, **kwargs) -> dict:
                 result = await _browser_create_inbox()
             elif tool_name == "browser_wait_for_code":
                 result = await _browser_wait_for_code(kwargs.get("timeout", 30), kwargs.get("sender_hint", ""))
+            elif tool_name == "browser_record_start":
+                result = await _browser_record_start(
+                    kwargs.get("name", "login"),
+                    kwargs.get("site", ""),
+                    kwargs.get("note", ""),
+                )
+            elif tool_name == "browser_record_stop":
+                result = await _browser_record_stop(kwargs.get("save", True))
+            elif tool_name == "browser_playbook_list":
+                result = await _browser_playbook_list()
+            elif tool_name == "browser_playbook_show":
+                result = await _browser_playbook_show(
+                    kwargs["site"], kwargs.get("flow", "")
+                )
+            elif tool_name == "browser_playbook_replay":
+                result = await _browser_playbook_replay(
+                    kwargs["site"],
+                    kwargs.get("flow", "login"),
+                    kwargs.get("session_id"),
+                    kwargs.get("sensitive_data"),
+                )
+            elif tool_name == "browser_playbook_forget":
+                result = await _browser_playbook_forget(
+                    kwargs["site"], kwargs.get("flow", "")
+                )
 
             elif tool_name == "spotify_control":
                 from hive.browser import spotify
@@ -725,6 +807,9 @@ async def execute_tool(tool_name: str, **kwargs) -> dict:
             # ─── Native Integrations ──────────────────────────────
             elif tool_name in INTEGRATION_TOOLS:
                 result = await run_integration_tool(tool_name, **kwargs)
+            # ─── Club-ops workflows ───────────────────────────────
+            elif tool_name in WORKFLOW_TOOLS:
+                result = await run_workflow_tool(tool_name, **kwargs)
             # ─── MCP Tools ────────────────────────────────────────
             elif tool_name.startswith("mcp_"):
                 from hive.mcp.bridge import mcp_bridge
@@ -1822,6 +1907,11 @@ async def _browser_open(url: str) -> dict:
         # Wait extra time for React/SPA to render
         await page.wait_for_timeout(3000)
         title = await page.title()
+        try:
+            from hive.browser.recorder import get_recorder
+            get_recorder().record_goto(page.url)
+        except Exception:
+            pass
         return {"status": "opened", "url": page.url, "title": title}
     except Exception as e:
         return {"error": str(e)}
@@ -1833,11 +1923,17 @@ async def _browser_click(selector: str = "", index: int = -1) -> dict:
     pool = get_pool()
     try:
         page = await pool.get_page()
+        resolved_selector = selector
         if index >= 0:
             # Resolve the exact element browser_inspect reported at this index
             el = await _get_indexed_element(page, index)
             if el is None:
                 return {"error": f"Index {index} not found on page (run browser_inspect again)"}
+            try:
+                from hive.browser.recorder import selector_for
+                resolved_selector = await selector_for(page, el, selector)
+            except Exception:
+                pass
             try:
                 await el.scroll_into_view_if_needed(timeout=3000)
             except Exception:
@@ -1865,6 +1961,11 @@ async def _browser_click(selector: str = "", index: int = -1) -> dict:
         else:
             return {"error": "Provide either index or selector"}
         await page.wait_for_load_state("domcontentloaded", timeout=10000)
+        try:
+            from hive.browser.recorder import get_recorder
+            get_recorder().record_click(resolved_selector)
+        except Exception:
+            pass
         return {"status": "clicked", "url": page.url}
     except Exception as e:
         return {"error": str(e)}
@@ -1943,11 +2044,17 @@ async def _browser_type(selector: str = "", text: str = "", press_enter: bool = 
             for key, value in sensitive_data.items():
                 actual_text = actual_text.replace(f"${{{key}}}", str(value))
         
+        resolved_selector = selector
         if index >= 0:
             # Resolve the exact element browser_inspect reported at this index
             el = await _get_indexed_element(page, index)
             if el is None:
                 return {"error": f"Index {index} not found on page (run browser_inspect again)"}
+            try:
+                from hive.browser.recorder import selector_for
+                resolved_selector = await selector_for(page, el, selector)
+            except Exception:
+                pass
             await _type_like_human(page, el, actual_text, press_enter)
         elif selector:
             el = await page.wait_for_selector(selector, timeout=5000)
@@ -1955,6 +2062,11 @@ async def _browser_type(selector: str = "", text: str = "", press_enter: bool = 
         else:
             return {"error": "Provide either index or selector"}
         await page.wait_for_load_state("domcontentloaded", timeout=10000)
+        try:
+            from hive.browser.recorder import get_recorder
+            get_recorder().record_type(resolved_selector, text, press_enter)
+        except Exception:
+            pass
         return {"status": "typed", "text": "***" if sensitive_data else actual_text, "url": page.url}
     except Exception as e:
         return {"error": str(e)}
@@ -2179,6 +2291,58 @@ async def _browser_wait_for_code(timeout: int = 30, sender_hint: str = "") -> di
         return {"error": f"No code received within {timeout} seconds"}
     except Exception as e:
         return {"error": str(e)}
+
+
+async def _browser_record_start(name: str = "login", site: str = "",
+                                note: str = "") -> dict:
+    from hive.browser.recorder import get_recorder
+    return get_recorder().start(name, site, note)
+
+
+async def _browser_record_stop(save: bool = True) -> dict:
+    from hive.browser.recorder import get_recorder
+    return get_recorder().stop(bool(save))
+
+
+async def _browser_playbook_list() -> dict:
+    from hive.playbooks import list_playbooks
+    return await asyncio.to_thread(list_playbooks)
+
+
+async def _browser_playbook_show(site: str, flow: str = "") -> dict:
+    from hive.playbooks import get_flow, list_flows
+
+    def _show():
+        key = site
+        if flow:
+            data = get_flow(key, flow)
+            if not data:
+                return {"error": f"No flow '{flow}' for {key}"}
+            return {"site": key, "flow": flow, "steps": data.get("steps", [])}
+        return list_flows(key)
+
+    return await asyncio.to_thread(_show)
+
+
+async def _browser_playbook_replay(site: str, flow: str = "login",
+                                   session_id: str | None = None,
+                                   sensitive_data: dict | None = None) -> dict:
+    from hive.browser.replay import replay_flow
+    return await replay_flow(site, flow, session_id, sensitive_data)
+
+
+async def _browser_playbook_forget(site: str, flow: str = "") -> dict:
+    from hive.playbooks import delete_flow, delete_playbook
+
+    def _forget():
+        if flow:
+            removed = delete_flow(site, flow)
+            return {"status": "deleted" if removed else "not_found",
+                    "site": site, "flow": flow}
+        removed = delete_playbook(site)
+        return {"status": "deleted" if removed else "not_found", "site": site}
+
+    return await asyncio.to_thread(_forget)
 
 
 async def _browser_use_task(task: str, headless: bool = False, max_steps: int = 30) -> dict:

@@ -69,9 +69,9 @@ That's a **defensible stack** for "AI that runs your online life safely."
 ## Near-Term Roadmap
 
 1. **Done:** Vault, signup, checkout gates, CLI prompts, Google login helper, OAuth
-2. **Next:** Site playbooks + trust ladder per domain
-3. **Then:** Mission templates ("weekly report", "price monitor", "job applications")
-4. **Later:** Ink UI for confirm/2FA, playbook editor, digital twin profiles
+2. **Done:** Site playbooks (record/replay) + trust ladder per domain
+3. **Done:** Club-ops missions + desktop Inbox/Calendar/Tasks/Missions + personas + CAPTCHA handoff
+4. **Later:** Richer Ink confirm/2FA UI, visual playbook editor, live society dashboard
 
 ## One-Line Pitch
 

@@ -1,5 +1,7 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PythonMessage, NodeMessage } from './types.js';
 
 export type MessageHandler = (msg: PythonMessage) => void;
@@ -22,11 +24,14 @@ export class PythonBridge {
       this.process = null;
     }
 
-    const hiveRoot = new URL('../../', import.meta.url).pathname
-      .replace(/^\/([A-Z]:)/, '$1')
-      .replace(/\//g, '\\');
+    const hiveRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-    const venvPython = hiveRoot + '\\.venv\\Scripts\\python.exe';
+    const venvPython = path.join(
+      hiveRoot,
+      '.venv',
+      process.platform === 'win32' ? 'Scripts' : 'bin',
+      process.platform === 'win32' ? 'python.exe' : 'python'
+    );
     const actualPython = fs.existsSync(venvPython) ? venvPython : pythonPath;
 
     this.process = spawn(actualPython, ['-m', 'hive.cli', '--server', ...args], {

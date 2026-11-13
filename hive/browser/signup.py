@@ -122,14 +122,28 @@ Original request: {task}
     # Check for CAPTCHA
     inspect = await execute_tool("browser_inspect")
     if not inspect.get("error") and _is_captcha_page(inspect.get("elements", [])):
-        if CAPTCHA_SOLVER_ENABLED:
-            logger.info("CAPTCHA detected — solver enabled but not implemented; handing off to human")
-        return {
-            "status": "captcha_required",
-            "message": "CAPTCHA detected. Please solve it in the browser, then retry.",
-            "email": signup_email,
-            "requires_human": True,
-        }
+        from hive.browser.captcha import handle_captcha
+        from hive.browser.pool import get_pool
+
+        page = await get_pool().get_page()
+        outcome = await handle_captcha(
+            site, url or page.url, page=page, elements=inspect.get("elements", [])
+        )
+        if outcome.get("status") != "solved":
+            return {
+                "status": "captcha_required",
+                "message": outcome.get("message")
+                or "CAPTCHA detected. Please solve it in the browser, then retry.",
+                "email": signup_email,
+                "requires_human": True,
+                "captcha": outcome,
+            }
+        logger.info("CAPTCHA solved via %s; resuming signup", outcome.get("provider"))
+        result = await browser_run(
+            "The CAPTCHA has been solved. Continue the account signup from where "
+            "it stopped and report success when the account is created.",
+            context=context,
+        )
 
     if result.get("status") == "completed":
         # Persist to vault

@@ -43,6 +43,13 @@ venv/
 .coverage
 htmlcov/
 
+### Node ###
+node_modules/
+desktop/dist/
+desktop/node_modules/
+hive-frontend/dist/
+hive-frontend/node_modules/
+
 ### HIVE specific ###
 # Secrets
 *.pem
@@ -52,3 +59,4 @@ google_oauth_client.json
 db/hive.db
 *.log
 .DS_Store
+.hive-test/

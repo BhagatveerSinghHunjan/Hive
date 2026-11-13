@@ -32,11 +32,43 @@ TOOL_TIERS = {
     "git_commit": "sensitive",
     "install_package": "sensitive",
     "delete_file": "dangerous",
-    # Gmail integration (read-only in Phase 1)
+    # Gmail integration — reads
     "gmail_status": "safe",
     "gmail_search": "safe",
     "gmail_read_thread": "safe",
     "gmail_list_labels": "safe",
+    # Gmail integration — local/reversible changes
+    "gmail_create_draft": "moderate",
+    "gmail_modify_labels": "moderate",
+    "gmail_archive": "moderate",
+    "gmail_mark_read": "moderate",
+    # Gmail integration — outbound sends (never auto-approved)
+    "gmail_send_draft": "sensitive",
+    "gmail_send_message": "sensitive",
+    # Google Calendar
+    "calendar_list_events": "safe",
+    "calendar_find_free_slots": "safe",
+    "calendar_detect_conflicts": "safe",
+    "calendar_create_event": "sensitive",
+    "calendar_update_event": "sensitive",
+    "calendar_delete_event": "dangerous",
+    # Tasks (local source of truth)
+    "task_add": "moderate",
+    "task_list": "safe",
+    "task_update": "moderate",
+    "task_complete": "moderate",
+    "task_delete": "moderate",
+    "tasks_sync": "moderate",
+    # Club-ops workflows (read + local task writes only)
+    "workflow_triage_inbox": "safe",
+    "workflow_prepare_meeting": "safe",
+    "workflow_sponsor_reminders": "safe",
+    "workflow_volunteer_schedule": "safe",
+    "workflow_venue_confirmation": "safe",
+    "workflow_daily_brief": "safe",
+    "workflow_post_meeting_followup": "moderate",
+    "mission_list": "safe",
+    "mission_run": "moderate",
     # Browser tools
     "browser_open": "moderate",
     "browser_click": "moderate",
@@ -55,6 +87,13 @@ TOOL_TIERS = {
     "browser_wait_for_code": "safe",
     # Browser Use tool (Chrome profile)
     "browser_use_task": "moderate",
+    # Playbooks (recorded flows / replay)
+    "browser_record_start": "moderate",
+    "browser_record_stop": "moderate",
+    "browser_playbook_list": "safe",
+    "browser_playbook_show": "safe",
+    "browser_playbook_replay": "moderate",
+    "browser_playbook_forget": "moderate",
     # Spotify control
     "spotify_control": "safe",
     # Vault tools
@@ -172,8 +211,15 @@ def validate_agent_code(code: str) -> tuple[bool, str]:
 
 
 def should_auto_allow(tool_name: str, target: str = "") -> bool:
-    """Check if tool call can be auto-approved."""
+    """Check if tool call can be auto-approved.
+
+    Sensitive and dangerous tools are never auto-approved: outbound actions
+    (email sends, calendar invites) must always pass through a human approval.
+    """
     tier = get_tool_tier(tool_name)
+
+    if tier in ("sensitive", "dangerous"):
+        return False
 
     if tier == "safe":
         return True
@@ -182,9 +228,18 @@ def should_auto_allow(tool_name: str, target: str = "") -> bool:
     if tool_name in ("web_search", "exa_search", "web_fetch"):
         return True
 
-    # Browser tools always auto-allow (no path checks needed)
+    # Safe/moderate browser tools auto-allow; explicit trust levels for a
+    # domain can tighten or relax this (checkout/signup never auto-allow).
     if tool_name.startswith("browser_"):
-        return True
+        try:
+            from hive.trust import can_auto_allow
+            decision = can_auto_allow(tool_name, target)
+            if decision is not None:
+                return decision
+        except Exception:
+            pass
+        if tier in ("safe", "moderate"):
+            return True
 
     if tier == "moderate" and target:
         allowed, _ = check_path_access(target)

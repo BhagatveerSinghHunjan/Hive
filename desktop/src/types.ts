@@ -57,3 +57,70 @@ export interface Budget {
   spent: number;
   total: number;
 }
+
+export interface InboxItem {
+  message_id?: string;
+  thread_id?: string;
+  from: string;
+  subject: string;
+  date?: string;
+  snippet?: string;
+  unread?: boolean;
+  priority: 'high' | 'medium' | 'low';
+  categories?: string[];
+  needs_reply?: boolean;
+}
+
+export interface AgendaEvent {
+  event_id?: string;
+  summary: string;
+  start: string;
+  end?: string;
+  location?: string;
+  description?: string;
+  html_link?: string;
+  meet_link?: string;
+  attendees?: Array<{ email?: string; name?: string; status?: string }>;
+}
+
+export interface TaskItem {
+  task_id: string;
+  title: string;
+  notes?: string;
+  due?: string | null;
+  priority?: 'high' | 'medium' | 'low';
+  status: 'pending' | 'done';
+  source?: string;
+}
+
+export interface MissionInfo {
+  name: string;
+  title: string;
+  description?: string;
+  workflow: string;
+  params?: Record<string, unknown>;
+  required?: string[];
+  source?: string;
+}
+
+export interface OverviewData {
+  ok: boolean;
+  timezone?: string;
+  inbox: { ok: boolean; count: number; needs_auth?: boolean; items: InboxItem[] };
+  agenda: {
+    ok: boolean;
+    count: number;
+    next?: AgendaEvent | null;
+    events: AgendaEvent[];
+    needs_auth?: boolean;
+  };
+  tasks: { ok: boolean; pending: number; due_soon: TaskItem[] };
+  missions: number;
+  connections: {
+    google_connected: boolean;
+    google_email?: string | null;
+    slack_configured: boolean;
+  };
+}
+
+export type RequestFn = (action: string, params?: Record<string, unknown>) => Promise<any>;

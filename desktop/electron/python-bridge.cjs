@@ -6,21 +6,38 @@ const readline = require('node:readline');
 function resolvePython(repoRoot) {
   if (process.env.HIVE_PYTHON) return process.env.HIVE_PYTHON;
 
-  const venv = path.join(repoRoot, '.venv', 'Scripts', 'python.exe');
+  const venv = process.platform === 'win32'
+    ? path.join(repoRoot, '.venv', 'Scripts', 'python.exe')
+    : path.join(repoRoot, '.venv', 'bin', 'python');
   if (fs.existsSync(venv)) return venv;
 
-  try {
-    const exe = execFileSync(
-      'py',
-      ['-3.13', '-c', 'import sys; print(sys.executable)'],
-      { encoding: 'utf8', windowsHide: true, timeout: 10000 }
-    ).trim();
-    if (exe && fs.existsSync(exe)) return exe;
-  } catch {
-    // py launcher unavailable; fall through
+  if (process.platform === 'win32') {
+    try {
+      const exe = execFileSync(
+        'py',
+        ['-3.13', '-c', 'import sys; print(sys.executable)'],
+        { encoding: 'utf8', windowsHide: true, timeout: 10000 }
+      ).trim();
+      if (exe && fs.existsSync(exe)) return exe;
+    } catch {
+      // py launcher unavailable; fall through
+    }
   }
 
-  return 'python';
+  for (const candidate of ['python3', 'python']) {
+    try {
+      execFileSync(candidate, ['--version'], {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 5000,
+      });
+      return candidate;
+    } catch {
+      // try the next interpreter
+    }
+  }
+
+  return process.platform === 'win32' ? 'python' : 'python3';
 }
 
 class PythonBridge {

@@ -43,6 +43,50 @@ def _run_agent_process(agent_code: str, task: str, context: dict) -> dict:
 MAX_LOOP_ITERATIONS = MAX_ITERATIONS
 
 
+def format_approval_target(tool_name: str, args: dict) -> str:
+    """Human-readable target for approval prompts (recipient, event, amount)."""
+    args = args or {}
+
+    def first(*keys):
+        for key in keys:
+            value = args.get(key)
+            if value not in (None, ""):
+                return str(value)
+        return ""
+
+    if tool_name.startswith("gmail_"):
+        to = first("to", "draft_id", "thread_id", "message_id")
+        subject = first("subject")
+        if subject and to:
+            return f"{to} — {subject}"
+        return subject or to
+
+    if tool_name.startswith("calendar_"):
+        summary = first("summary", "event_id")
+        when = first("start", "range_start", "time_min")
+        if summary and when:
+            return f"{summary} @ {when}"
+        return summary or when
+
+    if tool_name.startswith("task"):
+        return first("title", "task_id")
+
+    if tool_name == "browser_checkout":
+        merchant = first("merchant", "store")
+        amount = first("amount", "total")
+        if merchant or amount:
+            return f"{merchant} — {amount}".strip(" —")
+
+    if tool_name.startswith("browser_playbook") or tool_name.startswith("browser_record"):
+        site = first("site", "url", "domain")
+        flow = first("flow", "name")
+        if site and flow:
+            return f"{site} / {flow}"
+        return site or flow
+
+    return first("path", "url", "site", "command", "query", "target")
+
+
 class AgentRuntime:
     """Manages agent execution with process isolation."""
 
@@ -152,7 +196,7 @@ class AgentRuntime:
                         args = {}
 
                     tier = get_tool_tier(tool_name)
-                    target = args.get("path", args.get("url", args.get("command", "")))
+                    target = format_approval_target(tool_name, args)
 
                     if tier == "dangerous":
                         decision = "denied"
@@ -297,7 +341,7 @@ class AgentRuntime:
                         args = {}
                     
                     tier = get_tool_tier(tool_name)
-                    target = args.get("path", args.get("url", args.get("command", "")))
+                    target = format_approval_target(tool_name, args)
                     
                     if tier == "dangerous":
                         tool_result = {"error": f"Denied: {tool_name}"}

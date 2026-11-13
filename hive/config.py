@@ -95,11 +95,36 @@ GOOGLE_OAUTH_SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/tasks",
 ]
 
-# Integrations — Slack
+# Google Calendar defaults
+GOOGLE_CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "primary").strip() or "primary"
+
+# Google Tasks sync (local task store remains the source of truth)
+HIVE_GOOGLE_TASKS_SYNC = os.environ.get(
+    "HIVE_GOOGLE_TASKS_SYNC", "false"
+).lower() in ("1", "true", "yes")
+GOOGLE_TASKS_LIST_ID = os.environ.get("GOOGLE_TASKS_LIST_ID", "@default").strip() or "@default"
+HIVE_TASKS_FILE = Path(
+    os.environ.get("HIVE_TASKS_FILE", str(HIVE_HOME / "tasks.json"))
+).expanduser()
+
+# Integrations — Slack (status only for now)
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "").strip()
 SLACK_DEFAULT_CHANNEL = os.environ.get("SLACK_DEFAULT_CHANNEL", "").strip()
+
+# Personas (digital twins)
+HIVE_PERSONA = os.environ.get("HIVE_PERSONA", "").strip()
+HIVE_PERSONA_FILE = HIVE_HOME / "personas.json"
+
+# Trust ladder (browser autonomy per domain; outbound actions always ask)
+HIVE_TRUST_DEFAULT_LEVEL = int(os.environ.get("HIVE_TRUST_DEFAULT_LEVEL", "0"))
+
+# CAPTCHA solving (human handoff by default; optional external provider)
+HIVE_CAPTCHA_PROVIDER = os.environ.get("HIVE_CAPTCHA_PROVIDER", "human").strip().lower()
+HIVE_CAPTCHA_API_KEY = os.environ.get("HIVE_CAPTCHA_API_KEY", "").strip()
+HIVE_CAPTCHA_TIMEOUT = int(os.environ.get("HIVE_CAPTCHA_TIMEOUT", "180"))
 
 # Security
 ALLOWED_DOMAINS = [

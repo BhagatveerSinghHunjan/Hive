@@ -17,11 +17,25 @@ from hive.core.audit_logger import audit_logger
 
 logger = logging.getLogger(__name__)
 
-SPEND_LOG = Path(os.environ.get("HIVE_HOME", Path.home() / ".hive")) / "checkout_spend.json"
+_hive_home = Path(os.environ.get("HIVE_HOME", Path.home() / ".hive"))
+SPEND_LOG = _hive_home / "checkout_spend.json"
 
 # Config from env
 MAX_ORDER_AMOUNT = float(os.environ.get("HIVE_MAX_ORDER_AMOUNT", "500"))
 MAX_DAILY_SPEND = float(os.environ.get("HIVE_MAX_DAILY_SPEND", "1000"))
+try:
+    from hive.personas import active_persona as _active_persona
+
+    _persona = _active_persona()
+    if _persona.get("name") not in (None, "", "default"):
+        _persona_dir = _hive_home / "personas" / _persona["name"]
+        SPEND_LOG = _persona_dir / "checkout_spend.json"
+        if _persona.get("max_order_amount") not in (None, ""):
+            MAX_ORDER_AMOUNT = float(_persona["max_order_amount"])
+        if _persona.get("max_daily_spend") not in (None, ""):
+            MAX_DAILY_SPEND = float(_persona["max_daily_spend"])
+except Exception:
+    pass
 CHECKOUT_AUTONOMOUS = os.environ.get("HIVE_CHECKOUT_AUTONOMOUS", "false").lower() in ("1", "true", "yes")
 ALLOWED_MERCHANTS = [
     m.strip().lower()
