@@ -197,7 +197,8 @@ workflow_venue_confirmation, mission_list, mission_run.
 Also: web_search, exa_search when you need external facts.
 
 Rules: ground claims in tool results; never invent IDs; draft email before sending;
-keep replies short and action-oriented."""
+keep replies short and action-oriented. Never paste raw tool JSON — reply in plain
+language (e.g. “Playing Rich Heart by Gurinder Gill on your Mac”)."""
 
 COORDINATOR_PROMPT = """CLUB COORDINATOR MODE
 

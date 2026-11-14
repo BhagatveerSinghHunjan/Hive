@@ -71,6 +71,7 @@ class PythonBridge {
         windowsHide: true,
         env: {
           ...process.env,
+          HIVE_ROOT: this.repoRoot,
           PYTHONUNBUFFERED: '1',
           PYTHONIOENCODING: 'utf-8',
         },

@@ -78,7 +78,7 @@ export function InboxScreen({ request, refreshKey, onNotify, onAsk }: InboxProps
           <div>
             <strong>Connect Google to read Gmail.</strong>
             <div className="card-foot" style={{ marginTop: 6 }}>
-              Run <code>python -m hive.cli --connect-google</code>, then refresh.
+              Open Settings → Google, save your OAuth client, then click Connect Google.
             </div>
           </div>
         </div>

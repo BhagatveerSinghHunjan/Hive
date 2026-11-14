@@ -111,6 +111,133 @@ def format_approval_target(tool_name: str, args: dict) -> str:
     return first("path", "url", "site", "command", "query", "target")
 
 
+def humanize_tool_result(tool_name: str, result: object) -> str | None:
+    """Turn structured tool payloads into a short user-facing sentence."""
+    if not isinstance(result, dict):
+        return None
+    if result.get("error"):
+        return str(result["error"])
+    if isinstance(result.get("message"), str) and result.get("message").strip():
+        # Prefer an explicit message when the tool already wrote one.
+        if tool_name == "spotify_control" or result.get("action") or result.get("playing"):
+            pass  # fall through to richer Spotify wording when possible
+        elif result.get("ok") is True or "ok" not in result:
+            return result["message"].strip()
+
+    action = str(result.get("action") or "").lower()
+    playing = result.get("playing")
+    if tool_name == "spotify_control" or action in {
+        "play",
+        "pause",
+        "resume",
+        "next",
+        "previous",
+        "now_playing",
+    } or isinstance(playing, dict):
+        device = ""
+        if isinstance(result.get("device"), dict):
+            device = str(result["device"].get("name") or "").strip()
+        elif isinstance(result.get("device"), str):
+            device = result["device"].strip()
+        where = f" on {device}" if device else ""
+
+        if isinstance(playing, dict) and playing.get("name"):
+            track = str(playing.get("name") or "").strip()
+            artists = str(playing.get("artists") or "").strip()
+            who = f" by {artists}" if artists else ""
+            if action in ("play", "search_play", "start", "play_playlist", ""):
+                return f"Playing {track}{who}{where}."
+            return f"Now playing {track}{who}{where}."
+
+        name = str(result.get("name") or "").strip()
+        artists = str(result.get("artists") or "").strip()
+        if name:
+            who = f" by {artists}" if artists else ""
+            if result.get("playing") is False:
+                return f"Paused — was {name}{who}{where}."
+            return f"{'Playing' if result.get('playing') else 'On Spotify'}: {name}{who}{where}."
+
+        if action == "pause":
+            return f"Paused Spotify{where}."
+        if action in ("resume", "unpause"):
+            return f"Resumed Spotify{where}."
+        if action in ("next", "skip"):
+            return f"Skipped to the next track{where}."
+        if action in ("previous", "prev"):
+            return f"Went back to the previous track{where}."
+        if result.get("ok"):
+            return f"Spotify {action or 'ok'}{where}."
+
+    if tool_name in ("web_search", "exa_search") or result.get("results") or result.get("answers"):
+        results = result.get("results") or result.get("answers") or []
+        if isinstance(results, list) and results:
+            first = results[0] if isinstance(results[0], dict) else {}
+            title = first.get("title") or first.get("url") or "results"
+            return f"Found {len(results)} result(s). Top: {title}."
+
+    if result.get("ok") is True and isinstance(result.get("message"), str):
+        return result["message"].strip()
+    return None
+
+
+def _strip_code_fence(text: str) -> str:
+    raw = text.strip()
+    if not raw.startswith("```"):
+        return raw
+    lines = raw.split("\n")
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def finalize_assistant_text(text: str, fallbacks: list[str] | None = None) -> str:
+    """Replace raw tool-JSON dumps with a normal spoken reply."""
+    fallbacks = fallbacks or []
+    raw = (text or "").strip()
+    if not raw:
+        return fallbacks[-1] if fallbacks else "Done."
+
+    candidate = _strip_code_fence(raw)
+    if candidate.startswith("{") and candidate.endswith("}"):
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict):
+            spoken = humanize_tool_result("", data)
+            if spoken:
+                return spoken
+            if fallbacks:
+                return fallbacks[-1]
+
+    # Model sometimes prefixes a short line then dumps JSON
+    if "\n{" in candidate and candidate.rstrip().endswith("}"):
+        maybe_json = candidate[candidate.find("{") :].strip()
+        try:
+            data = json.loads(maybe_json)
+            spoken = humanize_tool_result("", data) if isinstance(data, dict) else None
+            if spoken:
+                prefix = candidate[: candidate.find("{")].strip()
+                return f"{prefix}\n{spoken}" if prefix and len(prefix) < 120 else spoken
+        except json.JSONDecodeError:
+            pass
+
+    return text if text else (fallbacks[-1] if fallbacks else "Done.")
+
+
+def _tool_message_content(tool_name: str, result: object) -> str:
+    payload = json.dumps(result)
+    summary = humanize_tool_result(tool_name, result)
+    if not summary:
+        return payload
+    return (
+        f"{payload}\n\n"
+        f"[Reply to the user in plain language using this summary — never paste raw JSON]: {summary}"
+    )
+
+
 class AgentRuntime:
     """Manages agent execution with process isolation."""
 
@@ -185,7 +312,8 @@ class AgentRuntime:
             # Use auto so simple chat (e.g. "hi") works on Groq/OSS models that
             # reject forced tool_choice="required" when no tool is needed.
             current_tool_choice = "auto"
-            
+            last_tool_summaries: list[str] = []
+
             while iteration < MAX_LOOP_ITERATIONS:
                 iteration += 1
                 
@@ -245,7 +373,10 @@ class AgentRuntime:
 
                 if not tool_calls:
                     agent_state.task_completed(success=True)
-                    return full_content or "I did not receive a response from the model."
+                    return finalize_assistant_text(
+                        full_content or "",
+                        last_tool_summaries,
+                    )
 
                 # After first tool call, switch to auto so model can respond with text
                 current_tool_choice = "auto"
@@ -323,15 +454,23 @@ class AgentRuntime:
 
                     result = await execute_tool(tool_name, **args)
                     _log.warning(f"[RUNTIME] Tool {tool_name} result: {str(result)[:300]}")
+                    spoken = humanize_tool_result(tool_name, result)
+                    if spoken:
+                        last_tool_summaries.append(spoken)
 
                     conversation.append({
                         "role": "tool",
                         "tool_call_id": tc.get("id", ""),
-                        "content": json.dumps(result),
+                        "content": _tool_message_content(tool_name, result),
                     })
 
             agent_state.task_completed(success=False)
-            return f"I reached the maximum number of tool iterations ({MAX_LOOP_ITERATIONS}). Here is what I accomplished so far:\n\n{full_content}" if full_content else "I reached the maximum number of iterations without a final response."
+            return finalize_assistant_text(
+                full_content or "",
+                last_tool_summaries,
+            ) or (
+                f"I reached the maximum number of tool iterations ({MAX_LOOP_ITERATIONS})."
+            )
         except Exception as e:
             # #region agent log
             _dbg("B", "runtime.py:run_loop_error", "run_loop failed", {
@@ -375,7 +514,8 @@ class AgentRuntime:
         try:
             # Use auto so providers like Groq gpt-oss can answer without tools.
             current_tool_choice = "auto"
-            
+            last_tool_summaries: list[str] = []
+
             while iteration < MAX_LOOP_ITERATIONS:
                 iteration += 1
                 
@@ -410,7 +550,10 @@ class AgentRuntime:
                 
                 if not tool_calls:
                     agent_state.task_completed(success=True)
-                    return full_content or "I did not receive a response from the model."
+                    return finalize_assistant_text(
+                        full_content or "",
+                        last_tool_summaries,
+                    )
 
                 for tc in tool_calls:
                     if isinstance(tc, dict):
@@ -437,7 +580,7 @@ class AgentRuntime:
                         conversation.append({
                             "role": "tool",
                             "tool_call_id": tc.get("id", ""),
-                            "content": json.dumps(tool_result),
+                            "content": _tool_message_content(tool_name, tool_result),
                         })
                         continue
                     
@@ -447,7 +590,7 @@ class AgentRuntime:
                             conversation.append({
                                 "role": "tool",
                                 "tool_call_id": tc.get("id", ""),
-                                "content": json.dumps(tool_result),
+                                "content": _tool_message_content(tool_name, tool_result),
                             })
                             continue
                     
@@ -461,18 +604,24 @@ class AgentRuntime:
                     sys.stdout.flush()
                     
                     result = await execute_tool(tool_name, **args)
+                    spoken = humanize_tool_result(tool_name, result)
+                    if spoken:
+                        last_tool_summaries.append(spoken)
                     
                     conversation.append({
                         "role": "tool",
                         "tool_call_id": tc.get("id", ""),
-                        "content": json.dumps(result),
+                        "content": _tool_message_content(tool_name, result),
                     })
                 
                 # After first tool call, switch to auto so model can respond with text
                 current_tool_choice = "auto"
             
             agent_state.task_completed(success=False)
-            return f"Max iterations reached. {full_content}" if full_content else "Max iterations reached."
+            return finalize_assistant_text(
+                full_content or "",
+                last_tool_summaries,
+            ) or "Max iterations reached."
         except Exception as e:
             agent_state.task_completed(success=False)
             raise

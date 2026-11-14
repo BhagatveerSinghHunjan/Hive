@@ -96,7 +96,7 @@ export function CalendarScreen({ request, refreshKey, onAsk }: CalendarProps) {
           <div>
             <strong>Connect Google to load Calendar.</strong>
             <div className="card-foot" style={{ marginTop: 6 }}>
-              Run <code>python -m hive.cli --connect-google</code>, then refresh.
+              Open Settings → Google, then click Connect Google.
             </div>
           </div>
         </div>

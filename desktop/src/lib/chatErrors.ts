@@ -74,3 +74,61 @@ export function friendlyChatError(raw: string): FriendlyError {
     detail: text.length > 160 ? text : undefined,
   };
 }
+
+/** Turn accidental raw tool-JSON assistant dumps into a spoken line. */
+export function friendlyToolReply(raw: string): string {
+  const text = (raw || '').trim();
+  if (!text) return text;
+
+  let candidate = text;
+  if (candidate.startsWith('```')) {
+    const lines = candidate.split('\n');
+    if (lines[0]?.startsWith('```')) lines.shift();
+    if (lines[lines.length - 1]?.trim() === '```') lines.pop();
+    candidate = lines.join('\n').trim();
+  }
+
+  if (!(candidate.startsWith('{') && candidate.endsWith('}'))) {
+    return text;
+  }
+
+  try {
+    const data = JSON.parse(candidate) as Record<string, unknown>;
+    if (data.error) return String(data.error);
+
+    const action = String(data.action || '').toLowerCase();
+    const playing = data.playing;
+    const deviceObj = data.device;
+    const device =
+      deviceObj && typeof deviceObj === 'object'
+        ? String((deviceObj as { name?: string }).name || '')
+        : typeof deviceObj === 'string'
+          ? deviceObj
+          : '';
+    const where = device ? ` on ${device}` : '';
+
+    if (playing && typeof playing === 'object') {
+      const track = String((playing as { name?: string }).name || '').trim();
+      const artists = String((playing as { artists?: string }).artists || '').trim();
+      if (track) {
+        const who = artists ? ` by ${artists}` : '';
+        return `Playing ${track}${who}${where}.`;
+      }
+    }
+
+    if (typeof data.message === 'string' && data.message.trim()) {
+      return data.message.trim();
+    }
+
+    if (action === 'pause') return `Paused Spotify${where}.`;
+    if (action === 'resume' || action === 'unpause') return `Resumed Spotify${where}.`;
+    if (action === 'next' || action === 'skip') return `Skipped to the next track${where}.`;
+    if (action === 'previous' || action === 'prev') {
+      return `Went back to the previous track${where}.`;
+    }
+  } catch {
+    return text;
+  }
+
+  return text;
+}

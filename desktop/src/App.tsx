@@ -10,7 +10,9 @@ import { CalendarScreen } from './components/Calendar';
 import { TasksScreen } from './components/Tasks';
 import { MissionsScreen } from './components/Missions';
 import { Chat } from './components/Chat';
+import { Settings, type SetupStatus } from './components/Settings';
 import { EggToast } from './components/EggToast';
+import { friendlyToolReply } from './lib/chatErrors';
 import type {
   AgentState,
   Budget,
@@ -61,7 +63,9 @@ export default function App() {
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [eggMessage, setEggMessage] = useState<string | null>(null);
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const eggTimer = useRef<number | null>(null);
+  const didRouteSetup = useRef(false);
 
   const showEgg = useCallback((message: string) => {
     if (eggTimer.current !== null) window.clearTimeout(eggTimer.current);
@@ -80,7 +84,7 @@ export default function App() {
     connectedRef.current = connected;
   }, [connected]);
 
-  const request = useCallback<RequestFn>((action, params = {}) => {
+  const request = useCallback<RequestFn>((action, params = {}, timeoutMs = 120000) => {
     return new Promise((resolve, reject) => {
       if (connectedRef.current !== 'connected') {
         reject(new Error('Python runtime is not connected.'));
@@ -90,11 +94,24 @@ export default function App() {
       const timer = window.setTimeout(() => {
         pendingRequests.current.delete(requestId);
         reject(new Error(`Request timed out: ${action}`));
-      }, 120000);
+      }, timeoutMs);
       pendingRequests.current.set(requestId, { resolve, timer });
       window.hive.send({ type: 'request', request_id: requestId, action, params });
     });
   }, []);
+
+  const loadSetupStatus = useCallback(async () => {
+    try {
+      const data = (await request('setup_status')) as SetupStatus;
+      setSetupStatus(data);
+      if (data?.needs_setup && !didRouteSetup.current) {
+        didRouteSetup.current = true;
+        setScreen('settings');
+      }
+    } catch {
+      // ignore until runtime is ready
+    }
+  }, [request]);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -155,8 +172,9 @@ export default function App() {
           setStatus('idle');
           setRuntimeExit(null);
           setApiKeyIssue(false);
-          pushEvent('system', 'Runtime connected', 'Electron ↔ JSON-lines ↔ Python');
+          pushEvent('system', 'Runtime connected', 'HIVE desktop ↔ Python runtime');
           void loadOverview();
+          void loadSetupStatus();
           break;
 
         case 'state':
@@ -279,7 +297,7 @@ export default function App() {
         }
 
         case 'response': {
-          const content = String(raw.content ?? '');
+          const content = friendlyToolReply(String(raw.content ?? ''));
           stopStream();
           setStreamText('');
           // Never dump swarm credential failures into the chat as the answer.
@@ -378,7 +396,7 @@ export default function App() {
       }
       pendingRequests.current.clear();
     };
-  }, [loadOverview, pushEvent, startStream, stopStream]);
+  }, [loadOverview, loadSetupStatus, pushEvent, startStream, stopStream]);
 
   // Dev-only harness for UI smoke tests. Vite strips this from production builds.
   useEffect(() => {
@@ -564,11 +582,23 @@ export default function App() {
         {apiKeyIssue && !runtimeExit && (
           <div className="banner banner-warn">
             <div>
-              <strong>Qwen API key rejected.</strong> Update <code>DASHSCOPE_API_KEY</code> in the repo{' '}
-              <code>.env</code>, then restart the runtime.
+              <strong>API key rejected.</strong> Open Settings, paste a valid LLM key, save, then
+              restart the runtime.
             </div>
-            <button className="btn btn-warn" onClick={restart}>
-              Restart runtime
+            <button className="btn btn-warn" onClick={() => setScreen('settings')}>
+              Open Settings
+            </button>
+          </div>
+        )}
+
+        {setupStatus?.needs_setup && !apiKeyIssue && !runtimeExit && screen !== 'settings' && (
+          <div className="banner banner-warn">
+            <div>
+              <strong>Finish setup.</strong> Add your AI key and connect Google or Spotify from
+              Settings — no terminal needed.
+            </div>
+            <button className="btn btn-warn" onClick={() => setScreen('settings')}>
+              Open Settings
             </button>
           </div>
         )}
@@ -613,6 +643,7 @@ export default function App() {
               quickPrompts={QUICK_PROMPTS}
               overview={overview}
               pendingApprovals={approvals.length + interactiveQueue.length}
+              spotifyConnected={Boolean(setupStatus?.spotify_connected)}
               onOpen={setScreen}
               onRefresh={loadOverview}
               onSubmit={submit}
@@ -653,6 +684,15 @@ export default function App() {
               interactive={interactiveQueue}
               onPermission={decidePermission}
               onInteractive={respondInteractive}
+            />
+          )}
+
+          {screen === 'settings' && (
+            <Settings
+              request={request}
+              onRestart={restart}
+              onNotify={(title, detail) => pushEvent('system', title, detail)}
+              onStatus={setSetupStatus}
             />
           )}
         </main>

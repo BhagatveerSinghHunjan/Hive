@@ -9,7 +9,8 @@ export type Screen =
   | 'tasks'
   | 'missions'
   | 'monitor'
-  | 'approvals';
+  | 'approvals'
+  | 'settings';
 
 interface NavProps {
   screen: Screen;
@@ -32,6 +33,7 @@ const ITEMS: Array<{ id: Screen; label: string; icon: string }> = [
   { id: 'missions', label: 'Workflows', icon: '✦' },
   { id: 'approvals', label: 'Approvals', icon: '✓' },
   { id: 'monitor', label: 'Activity', icon: '▤' },
+  { id: 'settings', label: 'Settings', icon: '⚙' },
 ];
 
 export function Nav({
@@ -80,7 +82,7 @@ export function Nav({
           title="HIVE — club operations"
         >
           <div className={`brand-mark ${buzzing ? 'buzz' : ''}`} aria-hidden>
-            <img className="brand-logo" src="./logo.svg" alt="" />
+            <img className="brand-logo" src="./logo.png" alt="HIVE" />
           </div>
           <div className="brand-copy">
             <div className="brand-name">HIVE</div>

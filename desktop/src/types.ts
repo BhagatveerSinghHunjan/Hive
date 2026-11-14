@@ -123,4 +123,8 @@ export interface OverviewData {
   };
 }
 
-export type RequestFn = (action: string, params?: Record<string, unknown>) => Promise<any>;
+export type RequestFn = (
+  action: string,
+  params?: Record<string, unknown>,
+  timeoutMs?: number
+) => Promise<any>;

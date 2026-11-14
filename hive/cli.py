@@ -1509,6 +1509,24 @@ class HiveServer:
                     params.get("query", "is:unread newer_than:7d"),
                     int(params.get("max_results", 20)),
                 )
+            elif action == "setup_status":
+                from hive.customer_setup import setup_status
+                data = setup_status()
+            elif action == "save_secrets":
+                from hive.customer_setup import save_secrets
+                data = save_secrets(params.get("values") or params)
+            elif action == "connect_google":
+                from hive.customer_setup import connect_google
+                data = await connect_google()
+            elif action == "disconnect_google":
+                from hive.customer_setup import disconnect_google
+                data = await disconnect_google()
+            elif action == "connect_spotify":
+                from hive.customer_setup import connect_spotify
+                data = await connect_spotify()
+            elif action == "disconnect_spotify":
+                from hive.customer_setup import disconnect_spotify
+                data = await disconnect_spotify()
             else:
                 data = {"ok": False, "error": f"Unknown action: {action}"}
         except Exception as exc:

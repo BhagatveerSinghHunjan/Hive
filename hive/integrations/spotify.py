@@ -581,12 +581,19 @@ async def control(action: str, query: str = "") -> dict:
             result = await _play_body(body)
             if result.get("error"):
                 return result
+            device = result.get("device") or {}
+            device_name = device.get("name") if isinstance(device, dict) else ""
+            track = (chosen or {}).get("name") or query
+            artists = (chosen or {}).get("artists") or ""
+            who = f" by {artists}" if artists else ""
+            where = f" on {device_name}" if device_name else ""
             return {
                 "ok": True,
                 "action": "play",
                 "playing": chosen,
                 "query": query,
-                "device": result.get("device"),
+                "device": device,
+                "message": f"Playing {track}{who}{where}.",
             }
 
         return {

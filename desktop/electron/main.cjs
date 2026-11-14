@@ -1,9 +1,18 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const path = require('node:path');
 const { PythonBridge } = require('./python-bridge.cjs');
 
+// Menu bar / About name — must run before ready on macOS.
+app.setName('HIVE');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.hive.desktop');
+}
+
 const REPO_ROOT = process.env.HIVE_ROOT || path.resolve(__dirname, '..', '..');
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
+const ICON_PNG = path.join(__dirname, '..', 'build', 'icon.png');
+const ICON_ICNS = path.join(__dirname, '..', 'build', 'icon.icns');
+const APP_ICON = process.platform === 'darwin' ? ICON_ICNS : ICON_PNG;
 
 let win = null;
 let bridge = null;
@@ -70,6 +79,7 @@ function createWindow() {
     center: true,
     backgroundColor: '#0d0b08',
     title: 'HIVE Desktop',
+    icon: APP_ICON,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -129,6 +139,35 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('hive:restart', async () => restartBridge());
+
+  if (process.platform === 'darwin' && app.dock) {
+    try {
+      app.dock.setIcon(ICON_PNG);
+    } catch {
+      // Native dock icon is best-effort in unpackaged electron .
+    }
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: 'HIVE',
+          submenu: [
+            { role: 'about' },
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            { role: 'quit' },
+          ],
+        },
+        { role: 'editMenu' },
+        { role: 'viewMenu' },
+        { role: 'windowMenu' },
+      ]),
+    );
+  }
 
   createWindow();
 
