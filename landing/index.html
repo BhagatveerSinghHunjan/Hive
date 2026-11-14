@@ -6,12 +6,15 @@
     <title>HIVE — Club ops desktop</title>
     <meta
       name="description"
-      content="HIVE is the desktop agent for club operations — mail, calendar, Spotify, and workflows. Download for Mac, add your keys, connect, and go."
+      content="HIVE is the desktop agent for club operations — mail, calendar, Spotify, and workflows. Download for Mac or Windows, add your keys, connect, and go."
     />
-    <!-- Set this to your GitHub Release asset (or leave blank to use /downloads/HIVE-mac.zip) -->
     <meta
-      name="hive-download-url"
-      content="https://github.com/BhagatveerSinghHunjan/Hive/releases/download/v0.1.0/HIVE-mac.zip"
+      name="hive-download-mac"
+      content="https://github.com/BhagatveerSinghHunjan/Hive/releases/download/v0.1.0/HIVE-mac-arm64.zip"
+    />
+    <meta
+      name="hive-download-win"
+      content="https://github.com/BhagatveerSinghHunjan/Hive/releases/download/v0.1.0/HIVE-windows-x64.zip"
     />
     <link rel="icon" type="image/png" href="./logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -46,10 +49,11 @@
             terminal.
           </p>
           <div class="cta-row" id="download">
-            <a class="cta" id="download-btn" href="./downloads/HIVE-mac.zip" download>
-              Download for Mac
-            </a>
-            <p class="cta-note" id="download-note">macOS · Apple Silicon &amp; Intel</p>
+            <div class="cta-group">
+              <a class="cta" id="download-mac" href="#">Download for Mac</a>
+              <a class="cta cta-secondary" id="download-win" href="#">Download for Windows</a>
+            </div>
+            <p class="cta-note" id="download-note">macOS Apple Silicon · Windows 10/11 x64</p>
           </div>
         </div>
         <div class="hero-visual" aria-hidden="true">
@@ -65,7 +69,7 @@
             <span class="step-num">01</span>
             <div>
               <h3>Download HIVE</h3>
-              <p>Install the desktop app. Open it like any other Mac app.</p>
+              <p>Grab the Mac or Windows build. Unzip and open the app.</p>
             </div>
           </li>
           <li>
@@ -88,9 +92,10 @@
       <section class="closer">
         <p class="brand-lockup small">HIVE</p>
         <h2>Ready when your club is.</h2>
-        <a class="cta" id="download-btn-2" href="./downloads/HIVE-mac.zip" download>
-          Download for Mac
-        </a>
+        <div class="cta-group">
+          <a class="cta" id="download-mac-2" href="#">Download for Mac</a>
+          <a class="cta cta-secondary" id="download-win-2" href="#">Download for Windows</a>
+        </div>
       </section>
     </main>
 
