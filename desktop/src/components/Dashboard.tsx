@@ -119,12 +119,12 @@ export function Dashboard({
             </div>
             {needsAuth && (
               <div className="card-foot">
-                Connect Google in Settings to unlock Inbox and Calendar.
+                Connect Google under Connections to unlock Inbox and Calendar.
               </div>
             )}
             <div className="card-actions">
               <button type="button" className="btn" onClick={() => onOpen('settings')}>
-                {needsAuth || !spotifyConnected ? 'Open Settings' : 'Manage connections'}
+                {needsAuth || !spotifyConnected ? 'Open Connections' : 'Manage connections'}
               </button>
               <button
                 type="button"

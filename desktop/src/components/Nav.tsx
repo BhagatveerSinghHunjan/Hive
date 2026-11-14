@@ -33,7 +33,7 @@ const ITEMS: Array<{ id: Screen; label: string; icon: string }> = [
   { id: 'missions', label: 'Workflows', icon: '✦' },
   { id: 'approvals', label: 'Approvals', icon: '✓' },
   { id: 'monitor', label: 'Activity', icon: '▤' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
+  { id: 'settings', label: 'Connections', icon: '⚙' },
 ];
 
 export function Nav({
@@ -82,7 +82,7 @@ export function Nav({
           title="HIVE — club operations"
         >
           <div className={`brand-mark ${buzzing ? 'buzz' : ''}`} aria-hidden>
-            <img className="brand-logo" src="./logo.png" alt="HIVE" />
+            <img className="brand-logo" src="./logo.svg" alt="HIVE" />
           </div>
           <div className="brand-copy">
             <div className="brand-name">HIVE</div>

@@ -96,7 +96,7 @@ export function CalendarScreen({ request, refreshKey, onAsk }: CalendarProps) {
           <div>
             <strong>Connect Google to load Calendar.</strong>
             <div className="card-foot" style={{ marginTop: 6 }}>
-              Open Settings → Google, then click Connect Google.
+              Open Connections → Google, then click Connect Google.
             </div>
           </div>
         </div>

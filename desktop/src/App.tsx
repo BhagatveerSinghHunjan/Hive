@@ -582,11 +582,11 @@ export default function App() {
         {apiKeyIssue && !runtimeExit && (
           <div className="banner banner-warn">
             <div>
-              <strong>API key rejected.</strong> Open Settings, paste a valid LLM key, save, then
+              <strong>API key rejected.</strong> Open Connections, paste a valid LLM key, save, then
               restart the runtime.
             </div>
             <button className="btn btn-warn" onClick={() => setScreen('settings')}>
-              Open Settings
+              Open Connections
             </button>
           </div>
         )}
@@ -595,10 +595,10 @@ export default function App() {
           <div className="banner banner-warn">
             <div>
               <strong>Finish setup.</strong> Add your AI key and connect Google or Spotify from
-              Settings — no terminal needed.
+              Connections — no terminal needed.
             </div>
             <button className="btn btn-warn" onClick={() => setScreen('settings')}>
-              Open Settings
+              Open Connections
             </button>
           </div>
         )}

@@ -78,7 +78,7 @@ export function InboxScreen({ request, refreshKey, onNotify, onAsk }: InboxProps
           <div>
             <strong>Connect Google to read Gmail.</strong>
             <div className="card-foot" style={{ marginTop: 6 }}>
-              Open Settings → Google, save your OAuth client, then click Connect Google.
+              Open Connections → Google, save your OAuth client, then click Connect Google.
             </div>
           </div>
         </div>

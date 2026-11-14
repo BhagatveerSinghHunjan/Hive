@@ -16,8 +16,6 @@
     "prestart": "node scripts/brand-electron.cjs",
     "start": "electron .",
     "dist": "npm run build && electron-builder --mac zip --arm64",
-    "dist:win": "npm run build && electron-builder --win zip --x64",
-    "dist:all": "npm run build && electron-builder --mac zip --arm64 && electron-builder --win zip --x64",
     "dist:dir": "npm run build && electron-builder --mac dir",
     "publish-landing": "node scripts/publish-download.js"
   },
@@ -66,19 +64,6 @@
       ],
       "artifactName": "HIVE-mac-${arch}.${ext}",
       "identity": null
-    },
-    "win": {
-      "icon": "build/icon.png",
-      "signAndEditExecutable": false,
-      "target": [
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "HIVE-windows-${arch}.${ext}"
     },
     "asar": true
   },

@@ -120,9 +120,7 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
         GOOGLE_CLIENT_SECRET: '',
         SPOTIFY_CLIENT_SECRET: '',
       }));
-      if (data.restart_required) {
-        onRestart();
-      }
+      if (data.restart_required) onRestart();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -153,7 +151,7 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
 
   const fieldHint = (key: string, fallback: string) => {
     const meta = status?.fields?.[key];
-    if (meta?.set && meta.masked) return `Saved: ${meta.masked}`;
+    if (meta?.set && meta.masked) return `Saved · ${meta.masked}`;
     if (meta?.set) return 'Saved';
     return fallback;
   };
@@ -161,8 +159,8 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
   return (
     <PageShell
       className="settings-page"
-      title="Settings"
-      purpose="Add your keys and connect Google or Spotify here — no terminal required."
+      title="Connections"
+      purpose="Add keys once, connect Google and Spotify, then use Chat — no terminal."
       action={
         <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
           {loading ? 'Loading…' : 'Refresh'}
@@ -172,8 +170,8 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
       {status?.needs_setup && (
         <div className="banner banner-warn">
           <div>
-            <strong>Finish setup to use Chat.</strong> Paste an LLM API key below, save, then connect
-            Google or Spotify when you need them.
+            <strong>Add an AI key to unlock Chat.</strong> Everything else is optional until you need
+            mail or music.
           </div>
         </div>
       )}
@@ -181,12 +179,33 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
       {message && <div className="banner banner-ok">{message}</div>}
       {error && <div className="banner banner-error">{error}</div>}
 
+      <div className="conn-status-bar">
+        <span className={`connection-chip ${status?.llm_ready ? 'on' : ''}`}>
+          <span className="status-dot" />
+          AI {status?.llm_ready ? 'ready' : 'needed'}
+        </span>
+        <span className={`connection-chip ${status?.google_connected ? 'on' : ''}`}>
+          <span className="status-dot" />
+          Google {status?.google_connected ? 'connected' : 'off'}
+        </span>
+        <span className={`connection-chip ${status?.spotify_connected ? 'on' : ''}`}>
+          <span className="status-dot" />
+          Spotify {status?.spotify_connected ? 'connected' : 'off'}
+        </span>
+        <span className={`connection-chip ${status?.exa_ready ? 'on' : ''}`}>
+          <span className="status-dot" />
+          Search {status?.exa_ready ? 'ready' : 'off'}
+        </span>
+      </div>
+
       <div className="settings-stack">
-        <section className="card home-panel">
-          <div className="card-label">1 · AI model</div>
-          <p className="card-copy">
-            Required for chat. Use any OpenAI-compatible key (Groq, OpenRouter, DashScope, etc.).
-          </p>
+        <section className="card conn-panel">
+          <header className="conn-panel-head">
+            <div>
+              <h2 className="conn-title">AI model</h2>
+              <p className="conn-sub">Required for chat. Groq, OpenRouter, DashScope, or any OpenAI-compatible key.</p>
+            </div>
+          </header>
           <div className="settings-grid">
             <label className="settings-field">
               <span>API key</span>
@@ -208,7 +227,7 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
               />
             </label>
             <label className="settings-field">
-              <span>Base URL (optional)</span>
+              <span>Base URL</span>
               <input
                 type="text"
                 placeholder={fieldHint('HIVE_LLM_BASE_URL', 'https://api.groq.com/openai/v1')}
@@ -226,50 +245,29 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
               />
             </label>
           </div>
-          <div className="settings-status-row">
-            <span className={`connection-chip ${status?.llm_ready ? 'on' : ''}`}>
-              <span className="status-dot" />
-              {status?.llm_ready ? 'LLM ready' : 'LLM key missing'}
-            </span>
-            {status?.model && <span className="connection-email">{status.model}</span>}
-          </div>
         </section>
 
-        <section className="card home-panel">
-          <div className="card-label">2 · Web search (Exa)</div>
-          <p className="card-copy">Optional. Enables live web search from chat.</p>
-          <div className="settings-grid">
-            <label className="settings-field">
-              <span>Exa API key</span>
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={fieldHint('EXA_API_KEY', 'Paste Exa key')}
-                value={form.EXA_API_KEY}
-                onChange={(e) => setField('EXA_API_KEY', e.target.value)}
-              />
-            </label>
-          </div>
-          <div className="settings-status-row">
-            <span className={`connection-chip ${status?.exa_ready ? 'on' : ''}`}>
+        <section className="card conn-panel">
+          <header className="conn-panel-head">
+            <div>
+              <h2 className="conn-title">Google</h2>
+              <p className="conn-sub">Gmail + Calendar. Save client ID/secret, then connect in the browser.</p>
+            </div>
+            <span className={`connection-chip ${status?.google_connected ? 'on' : ''}`}>
               <span className="status-dot" />
-              {status?.exa_ready ? 'Exa ready' : 'Not set'}
+              {status?.google_connected
+                ? status.google_email || 'Connected'
+                : status?.google_client_ready
+                  ? 'Ready to connect'
+                  : 'Not set'}
             </span>
-          </div>
-        </section>
-
-        <section className="card home-panel">
-          <div className="card-label">3 · Google (Gmail + Calendar)</div>
-          <p className="card-copy">
-            Paste your Google Cloud Desktop OAuth client ID and secret, save, then connect. A browser
-            window will open to sign in.
-          </p>
+          </header>
           <div className="settings-grid">
             <label className="settings-field">
               <span>Client ID</span>
               <input
                 type="text"
-                placeholder={fieldHint('GOOGLE_CLIENT_ID', 'xxxx.apps.googleusercontent.com')}
+                placeholder={fieldHint('GOOGLE_CLIENT_ID', '….apps.googleusercontent.com')}
                 value={form.GOOGLE_CLIENT_ID}
                 onChange={(e) => setField('GOOGLE_CLIENT_ID', e.target.value)}
               />
@@ -284,16 +282,6 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
                 onChange={(e) => setField('GOOGLE_CLIENT_SECRET', e.target.value)}
               />
             </label>
-          </div>
-          <div className="settings-status-row">
-            <span className={`connection-chip ${status?.google_connected ? 'on' : ''}`}>
-              <span className="status-dot" />
-              {status?.google_connected
-                ? `Google connected${status.google_email ? ` · ${status.google_email}` : ''}`
-                : status?.google_client_ready
-                  ? 'App credentials saved — connect account'
-                  : 'Credentials missing'}
-            </span>
           </div>
           <div className="card-actions">
             <button
@@ -317,12 +305,21 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
           </div>
         </section>
 
-        <section className="card home-panel">
-          <div className="card-label">4 · Spotify</div>
-          <p className="card-copy">
-            Paste Spotify Developer app credentials, save, then connect. Premium is required for
-            playback control.
-          </p>
+        <section className="card conn-panel">
+          <header className="conn-panel-head">
+            <div>
+              <h2 className="conn-title">Spotify</h2>
+              <p className="conn-sub">Playback control. Premium required. Save credentials, then connect.</p>
+            </div>
+            <span className={`connection-chip ${status?.spotify_connected ? 'on' : ''}`}>
+              <span className="status-dot" />
+              {status?.spotify_connected
+                ? 'Connected'
+                : status?.spotify_client_ready
+                  ? 'Ready to connect'
+                  : 'Not set'}
+            </span>
+          </header>
           <div className="settings-grid">
             <label className="settings-field">
               <span>Client ID</span>
@@ -343,16 +340,6 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
                 onChange={(e) => setField('SPOTIFY_CLIENT_SECRET', e.target.value)}
               />
             </label>
-          </div>
-          <div className="settings-status-row">
-            <span className={`connection-chip ${status?.spotify_connected ? 'on' : ''}`}>
-              <span className="status-dot" />
-              {status?.spotify_connected
-                ? 'Spotify connected'
-                : status?.spotify_client_ready
-                  ? 'App credentials saved — connect account'
-                  : 'Credentials missing'}
-            </span>
           </div>
           <div className="card-actions">
             <button
@@ -376,9 +363,34 @@ export function Settings({ request, onRestart, onNotify, onStatus }: SettingsPro
           </div>
         </section>
 
+        <section className="card conn-panel">
+          <header className="conn-panel-head">
+            <div>
+              <h2 className="conn-title">Web search</h2>
+              <p className="conn-sub">Optional Exa key for live search from Chat.</p>
+            </div>
+            <span className={`connection-chip ${status?.exa_ready ? 'on' : ''}`}>
+              <span className="status-dot" />
+              {status?.exa_ready ? 'Ready' : 'Not set'}
+            </span>
+          </header>
+          <div className="settings-grid settings-grid-one">
+            <label className="settings-field">
+              <span>Exa API key</span>
+              <input
+                type="password"
+                autoComplete="off"
+                placeholder={fieldHint('EXA_API_KEY', 'Paste Exa key')}
+                value={form.EXA_API_KEY}
+                onChange={(e) => setField('EXA_API_KEY', e.target.value)}
+              />
+            </label>
+          </div>
+        </section>
+
         <div className="settings-footer-actions">
           <button type="button" className="btn" disabled={Boolean(busy)} onClick={() => void save()}>
-            {busy === 'save' ? 'Saving…' : 'Save settings'}
+            {busy === 'save' ? 'Saving…' : 'Save'}
           </button>
           <button type="button" className="ghost-btn" disabled={Boolean(busy)} onClick={onRestart}>
             Restart runtime
