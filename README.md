@@ -1,368 +1,320 @@
-# HIVE — Agent Operating System
+# HIVE — The Operating Environment for Autonomous AI Workforces
 
-> **HIVE is an operating system where AI agents form temporary societies to solve problems.**
+**A desktop-first AI environment where intelligent agents collaborate, execute real-world tasks, and operate as a coordinated workforce.**
 
-Just as bees form a hive to accomplish what no single bee can, HIVE spawns hierarchical agent societies that collaborate, debate, and self-organize around complex goals.
+HIVE is an AI-native execution environment designed to move beyond traditional AI assistants. Instead of relying on one model to handle every task, HIVE coordinates specialized agents that plan, delegate, collaborate, challenge decisions, and execute work through connected tools.
 
----
-
-## The Central Thesis
-
-**Every complex problem is a society waiting to form.**
-
-Instead of programming a single AI to do everything, HIVE asks: *what kinds of minds would need to exist in a room to solve this?* It then assembles that society — and disassembles it when done.
-
-This is the difference between a chatbot and an agent society:
-
-| | Single Agent | HIVE Society |
-|---|---|---|
-| Handles complexity | By remembering everything | By distributing across specialists |
-| Catches errors | Self-review | Cross-examination by 4+ agents |
-| Makes high-stakes decisions | One opinion | Deliberated verdict |
-| Adapts to new task types | Retrained / prompted | Creator spawns a new agent |
-| Knows when to stop | Trust the model | Economy forces optimal resource use |
-| Learns from failure | Implicit | Explicit reputation system |
+From software development and research to browser automation, presentations, file operations, and business workflows, HIVE aims to provide a unified environment for getting work done with AI.
 
 ---
 
-## The Hive Metaphor
+## The Vision
 
-Every component maps to a hive function:
+Today's AI tools are fragmented.
 
-| Component | Hive Equivalent | Role |
-|---|---|---|
-| **HiveCore** | Queen Bee | Orchestrates, delegates, decides |
-| **Agent Forge** | Brood Chamber | Creates and configures new agents |
-| **Cleanup Crew** | Undertaker Bees | Retire agents, free memory, archive results |
-| **Web Scout** | Scout Bees | Forage the web for information |
-| **Security Scout** | Guard Bees | Patrol perimeter, detect threats |
-| **Code Architect** | Builder Bees | Design elegant solutions |
-| **Report Agent** | Scout Dancer | Communicates findings through clear patterns |
-| **Data Analyst** | Scientist Bee | Analyzes, measures, finds patterns in data |
-| **Diagnostician** | Surgeon Bee | Doesn't trust assumptions, probes deeply |
-| **Red Team Agent** | Hunter Bee | Thinks like the enemy, attacks the plan |
-| **GPU Tuner** | Engineer Bee | Optimizes, tunes, maintains efficiency |
-| **Communicator** | Ambassador Bee | Speaks to the outside world |
-| **Scheduler** | Clock Bee | Never misses a deadline |
-| **Account Manager** | Guard Bee | Verifies identity, manages access |
-| **Payment Agent** | Treasurer Bee | Precise, never loses a transaction |
+You use one tool to write code, another to conduct research, another to automate browsers, and another to manage business workflows. Even when AI agents are available, they often operate independently, with limited coordination, visibility, and control.
+
+HIVE brings these capabilities together.
+
+It provides a unified environment in which AI agents can:
+- Understand objectives and break them into actionable tasks.
+- Form teams of specialized agents dynamically.
+- Delegate work and coordinate execution.
+- Access tools, files, and external services.
+- Evaluate results and challenge assumptions.
+- Request human approval for sensitive actions.
+- Maintain execution context and report progress.
+
+**The goal is not another AI chatbot. It is an environment where AI can actually get work done.**
 
 ---
 
-## Architecture
+## Core Architecture
 
-![HIVE architecture — User → Alibaba SAS/ECS → Qwen Cloud DashScope](docs/architecture.png)
+HIVE combines a desktop application with a persistent agent execution runtime.
 
-User (CLI / Ink TUI) → **HIVE Core on Alibaba Cloud SAS/ECS** → SQLite + worker agents → **Qwen Cloud (DashScope)** for all LLM calls.
+| Layer | Responsibility |
+|---|---|
+| Desktop Environment | User interface, mission control, monitoring and approvals |
+| Agent Runtime | Agent lifecycle, orchestration and task execution |
+| HIVE Leader | Understands objectives and coordinates the workforce |
+| Specialist Agents | Perform domain-specific tasks |
+| Creator | Creates specialized agents when required |
+| Cleanup Crew | Handles agent retirement and execution cleanup |
+| Tool Layer | Connects agents to browsers, files, integrations and other capabilities |
+| Persistence | Stores execution state, agent information and application data |
 
-**Hackathon track:** Agent Society · **Deploy guide:** [DEPLOY.md](DEPLOY.md) · **Go-live checklist:** [docs/GO_LIVE.md](docs/GO_LIVE.md) · **Alibaba API proof:** [`hive/llm.py`](hive/llm.py)
+The desktop application communicates with the Python runtime through a JSON-lines interface.
 
-<details>
-<summary>Internal society layout (ASCII)</summary>
+### Agent Society
 
-```
-                    ┌──────────────────────────────┐
-                    │          HIVE CORE            │
-                    │         (Queen Bee)           │
-                    │   Questions-first leader      │
-                    │   1000 credits to spend       │
-                    └──────────────┬─────────────────┘
-                    ┌─────────────┼──────────────────┐
-                    │             │                  │
-            ┌───────┴───┐  ┌──────┴────┐  ┌────────┴───────┐
-            │ Agent     │  │ Cleanup   │  │ Message Bus   │
-            │ Forge     │  │ Crew      │  │               │
-            │(Brood)    │  │(Undertaker│  │ agent ←→ agent│
-            │           │  │ Bees)     │  │ communication │
-            └───────────┘  └───────────┘  └───────────────┘
-                    │
-          ┌─────────┼─────────────────────────────┐
-          │         │                             │
-   ┌──────┴──┐ ┌───┴───┐ ┌────────┐ ┌──────────┐  ┌────┐
-   │ Security│ │ Web   │ │ Architect│ │ Reporter │  │ ...│
-   │ Scout   │ │ Scout │ │         │ │ Agent    │  │ 14 │
-   │ Guard   │ │ Scout │ │ Builder │ │ Dancer   │  │    │
-   └─────────┘ └───────┘ └────────┘ └──────────┘  └────┘
-          │       │          │           │
-          │       └──────────┼───────────┤
-          │                  │           │
-          │         ┌────────┴──────────┘
-          │         │
-          │   ┌─────┴─────┐
-          │   │  Debate   │
-          │   │  Protocol │
-          │   │ Proposer  │
-          │   │ Skeptic   │
-          │   │ Architect │
-          │   │ Guardian  │
-          │   └───────────┘
-          │         │
-          │   ┌─────┴──────────┐
-          │   │ Judge Verdict  │
-          │   │ execute/escalate│
-          │   │ /reject         │
-          │   └────────────────┘
-          │
-    ┌─────┴──────────────────────────────────────┐
-    │           Economy & Reputation              │
-    │  Every agent: credits, energy, confidence   │
-    │  Leader: budget allocator                  │
-    │  Reputation: accuracy tracked over time     │
-    └────────────────────────────────────────────┘
-```
+HIVE uses a hierarchical multi-agent architecture.
 
-</details>
+- **Leader:** Coordinates missions, delegates work and monitors execution.
+- **Creator:** Designs and initializes task-specific agents.
+- **Specialists:** Execute assigned tasks using their respective capabilities.
+- **Cleanup Crew:** Manages agent retirement and cleanup.
+- **Debate and Judge:** Challenge proposed decisions and evaluate whether actions should proceed.
+
+Agents can communicate, share findings, challenge assumptions and request assistance rather than operating as isolated AI instances.
 
 ---
 
-## Key Features
+## Key Capabilities
 
-### 1. Dynamic Agent Society
-Agents aren't fixed. The Creator can design a **new specialist agent** for a task, use it, then the Deletor archives it. The swarm adapts.
+### 1. Multi-Agent Orchestration
+Coordinate multiple specialized agents around a common objective, with delegated responsibilities and centralized execution oversight.
 
-### 2. 4-Round Debate Protocol
-Before any significant action, a structured debate runs:
-- **Round 1**: Individual analysis (4 agents, no knowledge of others)
-- **Round 2**: Cross-debate (respond to others' positions)
-- **Round 3**: Refinement (revise based on challenges)
-- **Round 4**: Negotiation (reach verdict or escalate)
+### 2. Dynamic Agent Creation
+Create specialized agents based on the requirements of a mission rather than depending entirely on a fixed set of predefined agents.
 
-### 3. Economy System
-Every action costs credits. The Leader has a budget. This forces optimal resource allocation — spawn too many agents and you run out. Don't spawn enough and tasks fail.
+### 3. Structured Debate and Evaluation
+Use multi-round discussions between agents to challenge proposals, identify weaknesses and evaluate important decisions before execution.
 
-### 4. Agent Emotions
-Agents have emotional state: confidence, stress, load, trust. High stress triggers help-seeking. Low confidence triggers verification requests. The society self-regulates.
+### 4. Real-World Task Execution
+Connect agent intelligence to practical capabilities, including:
+- Browser automation using Playwright.
+- File operations and document generation.
+- PowerPoint presentation generation.
+- Coding and development workflows.
+- External integrations and APIs.
+- Google Workspace integrations.
 
-### 5. Reputation Affects Behavior
-Architect accuracy 98% → Leader trusts them. Security accuracy 62% → Leader asks another agent to verify. Reputation changes how the society works.
+### 5. Human-in-the-Loop Control
+Keep humans involved in important decisions through approval workflows, execution visibility and controlled external actions.
 
-### 6. Confidence on Every Result
-No more "Done." Every result returns: `confidence` (84%), `reason` (why), `suggested_helper` (who to ask next).
+### 6. Execution Monitoring
+Monitor missions, agent activity, task progress and execution status through the desktop interface.
 
-### 7. Single vs Society Benchmark
-For every significant action, HIVE compares: how would a single agent handle this? How does the swarm? The win rate is measurable.
-
-### 8. Club Ops Coordinator (PS 2)
-A coordinator profile turns HIVE into a student-club chief of staff: Gmail triage with drafts, Google Calendar agendas and meeting prep, local + Google Tasks follow-ups, sponsor reminders, volunteer scheduling, and a morning brief. Outbound email and calendar events always stop at the approval gate. See [docs/CLUB_OPS.md](docs/CLUB_OPS.md).
-
-### 9. VISION Extras
-- **Playbooks** — record a browser flow once, replay it later with parameter placeholders.
-- **Trust ladder** — per-domain autonomy levels (0 ask → 3 autonomous safe/moderate), with outbound actions never auto-approved.
-- **Personas** — separate vault, browser profile, and spend caps for a digital twin.
-- **CAPTCHA handoff** — human solve by default; optional 2captcha provider.
+### 7. Agent Economy and Reputation
+Use resource allocation, credits, confidence and agent performance tracking to encourage efficient delegation and more accountable execution.
 
 ---
 
-## Running HIVE
+## Desktop Experience
+
+HIVE is designed as a desktop application rather than a browser-based SaaS dashboard.
+
+The desktop environment provides a central workspace for interacting with and supervising the agent workforce.
+
+Core interface areas include:
+
+| Interface | Purpose |
+|---|---|
+| Dashboard | Overview of the HIVE environment |
+| Chat | Communicate objectives to HIVE |
+| Mission Control | Manage active missions |
+| Execution Monitor | Observe agent activity and progress |
+| Approvals | Review actions requiring human authorization |
+| Inbox | Manage communication and incoming items |
+| Calendar | View scheduled activities |
+| Tasks | Track assigned and pending work |
+| Workflows | Coordinate multi-step operations |
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Desktop Application | Electron |
+| Frontend | React |
+| Backend Runtime | Python |
+| Agent Communication | JSON Lines IPC |
+| Database | SQLite |
+| LLM Integration | Qwen / Alibaba Cloud DashScope |
+| Browser Automation | Playwright |
+| Agent Tool Integration | Model Context Protocol (MCP) |
+| External Integrations | Google APIs |
+| Desktop UI | React-based interface |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js and npm
+- Git
+- An Alibaba Cloud DashScope API key for the configured Qwen provider
+
+### 1. Clone the Repository
 
 ```bash
-pip install -e ".[browser]"   # or: pip install -r requirements.txt
-playwright install chromium    # required for Playwright browser tools
-# Optional: pip install browser-use  (Chrome-profile automation)
+git clone https://github.com/BhagatveerSinghHunjan/Hive.git
+cd Hive
+```
 
+### 2. Set Up the Python Runtime
+
+```bash
+python -m venv .venv
+```
+
+Activate the environment:
+
+**macOS / Linux**
+```bash
+source .venv/bin/activate
+```
+
+**Windows**
+```powershell
+.venv\Scripts\activate
+```
+
+Install dependencies:
+
+```bash
+pip install -e ".[browser]"
+```
+
+Install the Playwright browser:
+
+```bash
+playwright install chromium
+```
+
+### 3. Configure Environment Variables
+
+```bash
 cp .env.example .env
-# Edit .env — set DASHSCOPE_API_KEY (pay-as-you-go sk-... from home.qwencloud.com/api-keys)
-python scripts/verify_qwen_key.py
-
-python -m hive                          # interactive CLI
-python -m hive.cli --server             # JSON-lines server (desktop + Ink)
-python -m hive.cli --connect-google     # Gmail + Calendar + Tasks OAuth
-python -m hive.cli --check-integrations # credential-safe connector status
-python -m hive.cli --gmail-smoke        # live read-only Gmail smoke test
-python -m hive.deploy_server            # Alibaba proof endpoint on :8080
 ```
 
+Add the required API configuration to `.env`:
+
+```env
+DASHSCOPE_API_KEY=your_api_key_here
+```
+
+Keep API keys private. Never commit `.env` or other secret files.
+
+### 4. Start the Desktop Application
+
 ```bash
-# Desktop app (Electron + React)
 cd desktop
 npm install
 npm run build
 npm start
-
-# Ink terminal UI
-cd hive-frontend
-npm install
-npm run build
-npm start
 ```
 
-**Alibaba Cloud deploy (SAS + Docker):** see [DEPLOY.md](DEPLOY.md). Quick path:
+### 5. Run the Agent Runtime Separately
+
+From the project root, activate the Python environment and run:
 
 ```bash
-docker compose up -d --build
-curl http://127.0.0.1:8080/health
+python -m hive
 ```
+
+For the JSON-lines runtime interface:
 
 ```bash
-# Run browser smoke tests
-python test_browser_smoke.py
+python -m hive.cli --server
 ```
-
-**License:** MIT — see [LICENSE](LICENSE). **Submission kit:** [docs/SUBMISSION.md](docs/SUBMISSION.md)
 
 ---
 
-## Browser Automation
+## Project Structure
 
-HIVE has two browser engines that the swarm leader picks automatically:
-
-| Engine | Worker | Best for |
-|--------|--------|----------|
-| **Playwright** (headless) | `browser_agent` | Simple navigation, form fill, inspect/click |
-| **Browser Use** (visible Chrome) | `browser_use_worker` | Login, saved credentials, multi-step flows |
-| **Checkout** | `payment_agent` | Guarded purchase with human confirmation |
-
-### Quick examples (CLI)
-
-```
-# Login (swarm routes to browser_use_worker)
-/swarm login to github.com with email user@example.com password secret
-
-# Sign up
-/swarm sign up for an account at https://example.com/register
-
-# Store credentials in encrypted vault
-vault_store_credential(site="github.com", username="user@example.com", password="secret")
-
-# Checkout (stops before final purchase)
-/swarm checkout and buy item at https://shop.example.com for $29.99
-```
-
-### Encrypted Vault
-
-Credentials and payment cards are stored in `~/.hive/vault/secrets.enc` (Fernet encryption).
-- Key stored in OS keyring, or set `HIVE_VAULT_MASTER_PASSWORD` in `.env`
-- Card numbers never sent to the LLM — injected via `sensitive_data` placeholders
-
-### Checkout Guardrails
-
-| Setting | Default | Purpose |
-|---------|---------|---------|
-| `HIVE_CHECKOUT_AUTONOMOUS` | `false` | Pause before "Place Order" |
-| `HIVE_MAX_ORDER_AMOUNT` | `500` | Per-order spending cap |
-| `HIVE_MAX_DAILY_SPEND` | `1000` | Daily spending cap |
-| `HIVE_CHECKOUT_ALLOWED_MERCHANTS` | (empty) | Domain allowlist |
-
-### Playbooks, trust, and personas
-
-```
-/playbooks                    # recorded flows + trust scores
-/trust example.com 2          # set domain trust level (0-3)
-/persona list                 # active and saved personas
-```
-
-Browser record/replay tools are exposed to the leader: `browser_record_start`,
-`browser_record_stop`, `browser_playbook_list`, `browser_playbook_show`,
-`browser_playbook_replay`, and `browser_playbook_forget`. Trust levels only
-relax approvals for safe navigation/read steps; checkout, signup, email sends,
-and calendar writes are always human-approved.
-
-### CLI commands for browser
-
-```
-/google-login              # Manual Google sign-in (saves session)
-/google-login you@gmail.com
-/oauth github              # OAuth flow (set CLIENT_ID/SECRET in .env)
-/oauth google
-```
-
-See [VISION.md](VISION.md) for product direction and [PLAN.md](PLAN.md) Section 17 for the full testing guide.
-
-Run automated tests: `python -m pytest tests/ -v`
-
-## The Hackathon Demo Story
-
-**The moment judges remember:**
-
-```
-User: "Build me a web scraper that monitors competitor prices."
-
-HiveCore (Queen): "Who can solve this?"
-  Web Scout (Scout): "I volunteer. I can build scrapers."
-  Security Scout (Guard): "Wait — what sites? Are they allowed?"
-  Data Analyst (Scientist): "I'll need a storage schema."
-  Code Architect (Builder): "I can design this cleanly."
-
-HiveCore (Queen): "Security raises a concern. Debate it."
-
-[4-round structured debate runs]
-
-Judge: "VERDICT: execute"
-  Confidence: 87%
-  Cost: 45 credits
-  Safety: cleared by Guardian
-
-[Agents collaborate, Security monitors, Architect designs]
-
-HiveCore (Queen): "Complete. 3 potential price anomalies found."
-  Confidence: 91%
-  Single agent baseline would have missed 2.
-```
-
-**That's a demo people remember.**
-
----
-
-## Project Stats
-
-- **14 specialized agents** with unique personalities
-- **4-round debate protocol** for high-stakes decisions  
-- **Dynamic agent creation** — new specialists on demand
-- **Credit economy** — finite resources force optimal decisions
-- **Reputation system** — accuracy tracked, behavior adapts
-- **Single vs Society benchmarks** — provable improvement
-- **Live dashboard** — watch the hive work in real time
-- **Club Ops screens** — Inbox, Calendar, Tasks, and Missions in the desktop app
-- **Playbooks, trust ladder, personas, CAPTCHA handoff** — VISION extras included
-
----
-
-## File Structure
-
-```
-.
-├── README.md
-├── DEPLOY.md                    # Alibaba SAS/ECS + Qwen Cloud deploy
-├── LICENSE                      # MIT
+```text
+HIVE/
+│
+├── desktop/                  # Electron + React desktop application
+│
+├── hive/                     # Python agent runtime
+│   ├── agents/               # Leader, Creator and specialist agents
+│   ├── core/                 # Orchestration and agent coordination
+│   ├── integrations/         # External service integrations
+│   ├── workflows/            # Workflow execution
+│   ├── browser/              # Browser automation
+│   ├── llm.py                # LLM provider integration
+│   ├── missions.py           # Mission definitions
+│   └── state_api.py          # Runtime state interface
+│
+├── hive-frontend/            # Terminal interface
+│
+├── docs/                     # Architecture and documentation
+│
+├── scripts/                  # Setup and deployment utilities
+│
+├── tests/                    # Automated tests
+│
+├── pyproject.toml
+├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
-├── docs/
-│   ├── architecture.svg         # Architecture diagram (SVG)
-│   ├── architecture.png         # Architecture diagram (PNG for Devpost)
-│   ├── DEMO_VIDEO.md            # 3-minute demo script
-│   └── SUBMISSION.md            # Devpost paste-ready fields
-├── scripts/
-│   ├── verify_qwen_key.py
-│   ├── bootstrap_alibaba_sas.sh
-│   └── docker_entrypoint.sh
-├── hive/
-│   ├── main.py                  # CLI entry (python -m hive)
-│   ├── llm.py                   # Qwen / DashScope client (Alibaba API proof)
-│   ├── deploy_server.py         # :8080 health proof for Alibaba deploy
-│   ├── config.py                # DASHSCOPE_API_KEY, QWEN_BASE_URL
-│   ├── core/                    # economy, debate, message bus, …
-│   ├── agents/                  # leader, forge, workers, …
-│   ├── integrations/            # Gmail, Calendar, Tasks, registry
-│   ├── workflows/               # club-ops workflows + tool adapters
-│   ├── browser/                 # recorder, replay, captcha, vault, checkout
-│   ├── missions.py              # built-in + custom missions
-│   ├── state_api.py             # credential-safe UI snapshots
-│   ├── playbooks.py             # schema v2 flows + trust scores
-│   ├── trust.py                 # per-domain autonomy ladder
-│   ├── personas.py              # digital-twin isolation
-│   └── …
-├── desktop/                     # Electron + React club-ops desktop
-├── hive-frontend/               # Ink / React TUI
-├── docs/CLUB_OPS.md             # PS 2 operator guide
-└── tests/                       # 99 tests (pytest)
+└── README.md
 ```
 
 ---
 
-## Why HIVE Wins
+## Current Development Status
 
-**Innovation**: A society, not a tool. Dynamic agents, not a fixed list.
-**Technical depth**: Debate, economy, reputation, memory, governance — all working together.
-**Story**: "An operating system for AI agents that form temporary societies."
-**Demo**: Live visualization + debate + benchmark = memorable.
-**Benchmarks**: PROVABLE improvement over single-agent baseline.
+HIVE is an actively evolving project.
+
+The existing codebase includes:
+- Python-based multi-agent orchestration.
+- Leader and specialist agent architecture.
+- Dynamic agent creation and cleanup mechanisms.
+- Structured agent debate and evaluation.
+- Credit and reputation mechanisms.
+- Electron and React desktop interface.
+- JSON-lines communication with the Python runtime.
+- Browser automation and external integrations.
+- Mission management and execution monitoring.
+- Human approval workflows.
+
+Further development is focused on improving runtime reliability, expanding agent capabilities, strengthening execution controls, and bringing the desktop experience closer to a unified AI operating environment.
+
+HIVE is currently an alpha-stage project. Not every planned capability is production-ready.
+
+---
+
+## Design Philosophy
+
+HIVE is built around five principles:
+
+1. **Collective Intelligence:** Complex work should be distributed across specialized agents.
+2. **Autonomy with Oversight:** Agents should execute independently within clearly defined boundaries.
+3. **Transparency:** Users should understand what agents are doing and why.
+4. **Adaptability:** The workforce should adapt to the requirements of each mission.
+5. **Practical Execution:** Intelligence should translate into completed work, not just generated responses.
+
+---
+
+## Roadmap
+
+- [ ] More reliable persistent agent runtime.
+- [ ] Advanced mission planning and delegation.
+- [ ] Expanded coding and development capabilities.
+- [ ] Deeper browser and desktop automation.
+- [ ] Improved file and document workflows.
+- [ ] Stronger permission and approval infrastructure.
+- [ ] Agent memory and cross-mission continuity.
+- [ ] Enterprise workspace and identity management.
+- [ ] Advanced execution observability and recovery.
+
+---
+
+## Contributing
+
+HIVE is being developed as an evolving AI execution environment.
+
+Contributions, technical feedback, architectural discussions and ideas are welcome.
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Make your changes.
+4. Test your implementation.
+5. Submit a pull request.
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+**HIVE — From individual AI assistants to coordinated autonomous workforces.**
