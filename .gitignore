@@ -47,6 +47,9 @@ htmlcov/
 node_modules/
 desktop/dist/
 desktop/node_modules/
+desktop/release/
+landing/downloads/*.zip
+landing/downloads/*.dmg
 hive-frontend/dist/
 hive-frontend/node_modules/
 

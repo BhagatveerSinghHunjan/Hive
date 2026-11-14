@@ -8,7 +8,16 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.hive.desktop');
 }
 
-const REPO_ROOT = process.env.HIVE_ROOT || path.resolve(__dirname, '..', '..');
+function resolveRepoRoot() {
+  if (process.env.HIVE_ROOT) return process.env.HIVE_ROOT;
+  // Packaged Mac app: Python runtime lives in Contents/Resources/hive-runtime
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'hive-runtime');
+  }
+  return path.resolve(__dirname, '..', '..');
+}
+
+const REPO_ROOT = resolveRepoRoot();
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const ICON_PNG = path.join(__dirname, '..', 'build', 'icon.png');
 const ICON_ICNS = path.join(__dirname, '..', 'build', 'icon.icns');

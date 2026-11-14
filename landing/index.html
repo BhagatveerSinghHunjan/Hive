@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HIVE — Club ops desktop</title>
+    <meta
+      name="description"
+      content="HIVE is the desktop agent for club operations — mail, calendar, Spotify, and workflows. Download for Mac, add your keys, connect, and go."
+    />
+    <!-- Set this to your GitHub Release asset (or leave blank to use /downloads/HIVE-mac.zip) -->
+    <meta name="hive-download-url" content="" />
+    <link rel="icon" type="image/png" href="./logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+
+    <header class="top">
+      <a class="mark" href="#top" aria-label="HIVE home">
+        <img src="./logo.png" alt="" width="36" height="36" />
+        <span>HIVE</span>
+      </a>
+      <nav class="top-nav">
+        <a href="#how">How it works</a>
+        <a class="top-cta" id="nav-download" href="#download">Download</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="brand-lockup">HIVE</p>
+          <h1>Club ops on your desktop.</h1>
+          <p class="lede">
+            Draft mail, run the calendar, play Spotify, and clear approvals — without opening a
+            terminal.
+          </p>
+          <div class="cta-row" id="download">
+            <a class="cta" id="download-btn" href="./downloads/HIVE-mac.zip" download>
+              Download for Mac
+            </a>
+            <p class="cta-note" id="download-note">macOS · Apple Silicon &amp; Intel</p>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="orb"></div>
+          <img class="hero-logo" src="./logo.png" alt="" />
+        </div>
+      </section>
+
+      <section class="strip" id="how">
+        <h2>Three steps. Then you’re live.</h2>
+        <ol class="steps">
+          <li>
+            <span class="step-num">01</span>
+            <div>
+              <h3>Download HIVE</h3>
+              <p>Install the desktop app. Open it like any other Mac app.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num">02</span>
+            <div>
+              <h3>Paste your keys</h3>
+              <p>Settings holds your LLM key, Google, and Spotify — no `.env` editing.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num">03</span>
+            <div>
+              <h3>Connect &amp; run</h3>
+              <p>Browser login for Google and Spotify. Chat starts working immediately.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="closer">
+        <p class="brand-lockup small">HIVE</p>
+        <h2>Ready when your club is.</h2>
+        <a class="cta" id="download-btn-2" href="./downloads/HIVE-mac.zip" download>
+          Download for Mac
+        </a>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>HIVE Desktop</span>
+      <span class="foot-sep">·</span>
+      <span>Club operations agent</span>
+    </footer>
+
+    <script src="./main.js"></script>
+  </body>
+</html>

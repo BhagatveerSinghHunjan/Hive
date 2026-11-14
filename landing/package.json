@@ -1,0 +1,10 @@
+{
+  "name": "hive-landing",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HIVE marketing site for Vercel",
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "start": "python3 -m http.server 4173"
+  }
+}

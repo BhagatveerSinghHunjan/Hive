@@ -4,6 +4,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "HIVE Desktop — Electron demo shell for the HIVE agent runtime",
+  "author": "HIVE",
   "main": "electron/main.cjs",
   "scripts": {
     "brand": "node scripts/brand-electron.cjs",
@@ -13,7 +14,58 @@
     "prebuild": "node scripts/brand-electron.cjs",
     "build": "tsc --noEmit && vite build",
     "prestart": "node scripts/brand-electron.cjs",
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --mac zip",
+    "dist:dir": "npm run build && electron-builder --mac dir",
+    "publish-landing": "node scripts/publish-download.js"
+  },
+  "build": {
+    "appId": "com.hive.desktop",
+    "productName": "HIVE",
+    "copyright": "Copyright © HIVE",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../hive",
+        "to": "hive-runtime/hive",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      },
+      {
+        "from": "../requirements.txt",
+        "to": "hive-runtime/requirements.txt"
+      },
+      {
+        "from": "../.env.example",
+        "to": "hive-runtime/.env.example"
+      }
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "HIVE-mac.${ext}",
+      "identity": null
+    },
+    "asar": true
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -27,6 +79,7 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "wait-on": "^8.0.1"

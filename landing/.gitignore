@@ -1,0 +1,4 @@
+downloads/*.zip
+downloads/*.dmg
+downloads/*.blockmap
+.DS_Store
