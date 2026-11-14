@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { MissionInfo, RequestFn } from '../types';
+import { EmptyState, PageShell } from './PageShell';
 
 interface MissionsProps {
   request: RequestFn;
@@ -20,6 +21,11 @@ function paramKeys(mission: MissionInfo): string[] {
   );
 }
 
+function actionLabel(action: NextAction): string {
+  if (action.requires_approval) return 'Review in Chat → Approvals';
+  return 'Ask HIVE to continue';
+}
+
 export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
   const [missions, setMissions] = useState<MissionInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +41,7 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
     try {
       const data = await request('missions');
       setMissions(data.missions ?? []);
-      if (!data.ok) setError(String(data.error ?? 'To-dos unavailable'));
+      if (!data.ok) setError(String(data.error ?? 'Workflows unavailable'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -60,8 +66,8 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
         setResult(data);
         onNotify(
           'response',
-          `To-do: ${mission.title}`,
-          data.ok ? 'Workflow finished — review next actions.' : String(data.error ?? 'Failed')
+          `Workflow: ${mission.title}`,
+          data.ok ? 'Finished — review next actions below.' : String(data.error ?? 'Failed')
         );
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -77,84 +83,91 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
     : [];
 
   return (
-    <div className="ops-page">
-      <div className="page-head">
-        <div>
-          <h1>To-dos</h1>
-          <p>One click runs a club-ops workflow. Outbound actions come back as proposals for approval.</p>
-        </div>
-        <div className="page-head-actions">
-          <span className="pending-pill">{missions.length} to-dos</span>
-          <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </div>
-      </div>
-
+    <PageShell
+      className="ops-page"
+      title="Workflows"
+      purpose="One-click club jobs. Outbound steps still need your approval."
+      meta={<span className="pending-pill">{missions.length} workflows</span>}
+      action={
+        <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
+          {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      }
+    >
       {error && <div className="banner banner-error">{error}</div>}
 
-      <div className="mission-grid">
-        {missions.map((mission) => {
-          const keys = paramKeys(mission);
-          const isActive = active === mission.name;
-          return (
-            <article key={mission.name} className={`mission-card ${isActive ? 'active' : ''}`}>
-              <div className="mission-card-head">
-                <div>
-                  <div className="card-label">{mission.source === 'custom' ? 'Custom' : 'Built-in'}</div>
-                  <h3>{mission.title}</h3>
+      {missions.length === 0 && !loading ? (
+        <EmptyState
+          icon="✦"
+          title="No workflows loaded"
+          body="Restart the runtime, then refresh. Built-in club workflows should appear here."
+          actionLabel="Refresh"
+          onAction={() => void load()}
+        />
+      ) : (
+        <div className="mission-grid">
+          {missions.map((mission) => {
+            const keys = paramKeys(mission);
+            const isActive = active === mission.name;
+            return (
+              <article key={mission.name} className={`mission-card ${isActive ? 'active' : ''}`}>
+                <div className="mission-card-head">
+                  <div>
+                    <div className="card-label">{mission.source === 'custom' ? 'Custom' : 'Built-in'}</div>
+                    <h3>{mission.title}</h3>
+                  </div>
+                  <span className="tag">{mission.workflow}</span>
                 </div>
-                <span className="tag">{mission.workflow}</span>
-              </div>
-              <p className="mission-copy">{mission.description}</p>
+                <p className="mission-copy">{mission.description}</p>
 
-              {isActive && keys.length > 0 && (
-                <div className="mission-params">
-                  {keys.map((key) => (
-                    <label key={key} className="mission-field">
-                      <span>{key}</span>
-                      <input
-                        className="text-input"
-                        value={values[mission.name]?.[key] ?? ''}
-                        placeholder={String(mission.params?.[key] ?? '')}
-                        onChange={(event) =>
-                          setValues((prev) => ({
-                            ...prev,
-                            [mission.name]: {
-                              ...(prev[mission.name] ?? {}),
-                              [key]: event.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
+                {isActive && keys.length > 0 && (
+                  <div className="mission-params">
+                    {keys.map((key) => (
+                      <label key={key} className="mission-field">
+                        <span>{key}</span>
+                        <input
+                          className="text-input"
+                          value={values[mission.name]?.[key] ?? ''}
+                          placeholder={String(mission.params?.[key] ?? '')}
+                          onChange={(event) =>
+                            setValues((prev) => ({
+                              ...prev,
+                              [mission.name]: {
+                                ...(prev[mission.name] ?? {}),
+                                [key]: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mission-actions">
+                  <button
+                    className="btn btn-approve"
+                    disabled={running === mission.name}
+                    onClick={() => void run(mission)}
+                  >
+                    {running === mission.name ? 'Running…' : 'Run'}
+                  </button>
+                  <button className="ghost-btn" onClick={() => setActive(isActive ? null : mission.name)}>
+                    {isActive ? 'Hide params' : keys.length > 0 ? 'Set params' : 'Details'}
+                  </button>
                 </div>
-              )}
-
-              <div className="mission-actions">
-                <button
-                  className="btn btn-approve"
-                  disabled={running === mission.name}
-                  onClick={() => void run(mission)}
-                >
-                  {running === mission.name ? 'Running…' : 'Run to-do'}
-                </button>
-                <button className="ghost-btn" onClick={() => setActive(isActive ? null : mission.name)}>
-                  {isActive ? 'Hide params' : keys.length > 0 ? 'Set params' : 'Details'}
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       {result && (
         <section className="mission-result card">
           <div className="card-row">
             <div>
               <div className="card-label">Latest result</div>
-              <h3>{result.title ?? result.mission ?? 'To-do'}</h3>
+              <h3>{result.title ?? result.mission ?? 'Workflow'}</h3>
             </div>
             <span className={`tier-badge ${result.ok ? 'tier-safe' : 'tier-dangerous'}`}>
               {result.ok ? 'ok' : 'attention'}
@@ -187,11 +200,11 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
                       onAsk(
                         `Execute this prepared action now: tool ${action.tool}, args ${JSON.stringify(
                           action.args ?? {}
-                        )}. This is a proposal from a club-ops to-do; request human approval before any outbound action.`
+                        )}. This is a proposal from a club workflow; request human approval before any outbound action.`
                       )
                     }
                   >
-                    Ask HIVE to run
+                    {actionLabel(action)}
                   </button>
                 </div>
               ))}
@@ -199,6 +212,6 @@ export function MissionsScreen({ request, onNotify, onAsk }: MissionsProps) {
           )}
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

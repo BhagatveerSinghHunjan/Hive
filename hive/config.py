@@ -73,6 +73,8 @@ AGENT_TIMEOUT = int(os.environ.get("HIVE_AGENT_TIMEOUT", "60"))
 MAX_TOKENS = int(os.environ.get("HIVE_MAX_TOKENS", "4000"))
 MAX_ITERATIONS = int(os.environ.get("HIVE_MAX_ITERATIONS", "20"))
 HIVE_AGENT_PROFILE = os.environ.get("HIVE_AGENT_PROFILE", "full").strip().lower()
+# Tool schemas sent to the LLM: auto (slim on Groq/low-TPM), club, or full.
+HIVE_TOOL_PROFILE = os.environ.get("HIVE_TOOL_PROFILE", "auto").strip().lower()
 HIVE_TIMEZONE = os.environ.get("HIVE_TIMEZONE", "Asia/Kolkata")
 
 # Integrations — Google (Gmail + Calendar)
@@ -113,6 +115,19 @@ HIVE_TASKS_FILE = Path(
 # Integrations — Slack (status only for now)
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "").strip()
 SLACK_DEFAULT_CHANNEL = os.environ.get("SLACK_DEFAULT_CHANNEL", "").strip()
+
+# Integrations — Spotify Web API (OAuth; Premium required for playback)
+SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
+SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET", "").strip()
+SPOTIFY_REDIRECT_URI = os.environ.get(
+    "SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8899/callback"
+).strip()
+_spotify_token_env = os.environ.get("SPOTIFY_TOKEN_FILE", "").strip()
+SPOTIFY_TOKEN_FILE = (
+    Path(_spotify_token_env).expanduser()
+    if _spotify_token_env
+    else HIVE_HOME / "spotify_token.json"
+)
 
 # Personas (digital twins)
 HIVE_PERSONA = os.environ.get("HIVE_PERSONA", "").strip()

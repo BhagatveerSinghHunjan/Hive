@@ -1823,6 +1823,27 @@ class HiveServer:
         """Process a user message and stream results back."""
         self._task_start = time.time()
 
+        # #region agent log
+        try:
+            from pathlib import Path as _P
+            import json as _J
+            _lp = _P("/Users/bhagatveersingh/PEC HACKATHON/.cursor/debug-8b6d8b.log")
+            _lp.parent.mkdir(parents=True, exist_ok=True)
+            with _lp.open("a", encoding="utf-8") as _f:
+                _f.write(_J.dumps({
+                    "sessionId": "8b6d8b",
+                    "hypothesisId": "D",
+                    "location": "cli.py:_handle_user_message",
+                    "message": "server received user_message",
+                    "data": {"text_len": len(text or ""), "text_prefix": (text or "")[:80]},
+                    "timestamp": int(time.time() * 1000),
+                    "runId": "pre-fix",
+                }, ensure_ascii=False) + "\n")
+                _f.flush()
+        except Exception:
+            pass
+        # #endregion
+
         # Send initial status
         self._send({"type": "status", "status": "routing"})
         self._send({"type": "elapsed", "elapsed": "0.0s"})
@@ -1924,6 +1945,16 @@ if __name__ == "__main__":
         from hive.integrations.google_auth import google_auth
         removed = google_auth.disconnect()
         print(json.dumps({"disconnected": removed}, indent=2))
+    elif "--connect-spotify" in sys.argv:
+        from hive.integrations.spotify import SpotifyError, connect_spotify
+        try:
+            result = connect_spotify()
+        except SpotifyError as exc:
+            result = {"ok": False, "error": str(exc)}
+        print(json.dumps(result, indent=2, default=str))
+    elif "--disconnect-spotify" in sys.argv:
+        from hive.integrations.spotify import disconnect_spotify
+        print(json.dumps(disconnect_spotify(), indent=2))
     elif "--gmail-smoke" in sys.argv:
         from hive.integrations.gmail import search_messages
         query = "is:unread"

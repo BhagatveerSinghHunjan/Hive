@@ -6,9 +6,10 @@ interface ComposerProps {
   disabled: boolean;
   connected: ConnectionState;
   processing: boolean;
+  hint?: string;
 }
 
-export function Composer({ onSubmit, disabled, connected, processing }: ComposerProps) {
+export function Composer({ onSubmit, disabled, connected, processing, hint }: ComposerProps) {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -66,8 +67,8 @@ export function Composer({ onSubmit, disabled, connected, processing }: Composer
         <span>
           {connected === 'connected'
             ? processing
-              ? 'Execution in progress'
-              : 'Enter to send · Shift+Enter for a new line'
+              ? 'HIVE is working…'
+              : hint || 'Enter to send · Shift+Enter for a new line'
             : 'Runtime offline · restart from the sidebar'}
         </span>
       </div>

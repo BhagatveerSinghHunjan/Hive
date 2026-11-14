@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { Budget, ConnectionState } from '../types';
 
 export type Screen =
+  | 'chat'
   | 'dashboard'
   | 'inbox'
   | 'calendar'
@@ -23,13 +24,14 @@ interface NavProps {
 }
 
 const ITEMS: Array<{ id: Screen; label: string; icon: string }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: '◈' },
+  { id: 'chat', label: 'Chat', icon: '◎' },
+  { id: 'dashboard', label: 'Home', icon: '◈' },
   { id: 'inbox', label: 'Inbox', icon: '✉' },
   { id: 'calendar', label: 'Calendar', icon: '▦' },
   { id: 'tasks', label: 'Tasks', icon: '☑' },
-  { id: 'missions', label: 'To-dos', icon: '✦' },
-  { id: 'monitor', label: 'Monitor', icon: '▤' },
+  { id: 'missions', label: 'Workflows', icon: '✦' },
   { id: 'approvals', label: 'Approvals', icon: '✓' },
+  { id: 'monitor', label: 'Activity', icon: '▤' },
 ];
 
 export function Nav({
@@ -58,7 +60,7 @@ export function Nav({
     taps.current = 0;
     setBuzzing(true);
     window.setTimeout(() => setBuzzing(false), 700);
-    onEgg?.('The swarm is listening.');
+    onEgg?.('Club ops is online.');
   };
 
   const badgeFor = (id: Screen) => {
@@ -75,14 +77,14 @@ export function Nav({
           type="button"
           className="brand brand-hit"
           onClick={tapBrand}
-          title="HIVE — agents form temporary societies"
+          title="HIVE — club operations"
         >
           <div className={`brand-mark ${buzzing ? 'buzz' : ''}`} aria-hidden>
             <img className="brand-logo" src="./logo.svg" alt="" />
           </div>
           <div className="brand-copy">
             <div className="brand-name">HIVE</div>
-            <div className="brand-sub">Colony</div>
+            <div className="brand-sub">Club ops</div>
           </div>
         </button>
 
@@ -119,9 +121,9 @@ export function Nav({
           </span>
         </div>
 
-        <div className="budget-card" title="Nectar budget for the session">
+        <div className="budget-card" title="Session tool spend">
           <div className="budget-row">
-            <span>Credits</span>
+            <span>Session spend</span>
             <span className="budget-value">
               {budget.spent} / {budget.total}
             </span>

@@ -5,6 +5,7 @@ import uuid
 import asyncio
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from hive.config import HIVE_TIMEZONE, HIVE_AGENT_PROFILE
 from hive.llm import QwenClient
@@ -15,6 +16,27 @@ from hive.permissions import get_tool_tier, should_auto_allow
 from hive.core.economy import economy, COSTS
 from hive.core.message_bus import get_bus
 from hive.core.audit_logger import audit_logger
+
+# #region agent log
+_DEBUG_LOG = Path("/Users/bhagatveersingh/PEC HACKATHON/.cursor/debug-8b6d8b.log")
+
+def _dbg(hypothesis_id: str, location: str, message: str, data: dict | None = None) -> None:
+    try:
+        _DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with _DEBUG_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "sessionId": "8b6d8b",
+                "hypothesisId": hypothesis_id,
+                "location": location,
+                "message": message,
+                "data": data or {},
+                "timestamp": int(time.time() * 1000),
+                "runId": "pre-fix",
+            }, ensure_ascii=False) + "\n")
+            f.flush()
+    except Exception:
+        pass
+# #endregion
 
 SYSTEM_PROMPT = """You are HIVE, an AI operating system. You MUST use tools to do work.
 
@@ -59,12 +81,12 @@ BROWSER USE (separate engine, its own profile — use only if asked):
   DIFFERENT browser profile that does NOT share the saved logins above, so do
   NOT use it for logging into sites the persistent profile already handles.
 
-SPOTIFY CONTROL (uses the logged-in persistent browser):
+SPOTIFY CONTROL (official Web API / OAuth — not Chrome):
 - spotify_control(action, query): Control Spotify playback.
   - action="play", query="song/artist/playlist" → search and play it
   - action="pause" / "resume" / "next" / "previous" / "now_playing"
-  - Requires being logged into Spotify (the persistent profile stays logged in).
-  - Prefer this for any "play/pause/skip on Spotify" request.
+  - Requires SPOTIFY_CLIENT_ID/SECRET, `python -m hive.cli --connect-spotify`,
+    Spotify Premium, and an active Spotify device (app open).
 
 SESSION TOOLS (save login sessions for reuse):
 - browser_session_save(name): Save current session to disk (cookies, localStorage).
@@ -128,6 +150,54 @@ CRITICAL:
 - For checkout: never set confirm=true without explicit user approval
 
 Just do the work. Don't explain what you'll do."""
+
+# Full capabilities, shorter than SYSTEM_PROMPT so Groq TPM stays under budget.
+FULL_SYSTEM_PROMPT = """You are HIVE, an AI operating system. Call exactly ONE tool per response.
+
+SEARCH (Exa.ai — use for any Google-like lookup):
+- exa_search(query, num_results) / web_search(query) — real web results via https://exa.ai
+- web_fetch(url) — fetch a page
+
+GMAIL / CALENDAR / TASKS:
+- gmail_status, gmail_search, gmail_read_thread, gmail_create_draft, gmail_send_draft (approval)
+- calendar_list_events, calendar_create_event (approval), calendar_find_free_slots
+- task_add, task_list, task_complete
+
+SPOTIFY (Web API — not Chrome; needs --connect-spotify + Premium + open device):
+- spotify_control(action, query) — play/pause/resume/next/previous/now_playing
+
+BROWSER:
+- browser_open, browser_inspect, browser_click, browser_type, browser_read, browser_screenshot
+- browser_google_login, browser_session_save/load — keep logins (Spotify, Google)
+
+FILES / SHELL:
+- read_file, write_file, edit_file, list_directory, search_content, run_command
+
+WORKFLOWS: workflow_daily_brief, workflow_triage_inbox, mission_list, mission_run
+
+Rules: never invent search results or emails; draft before send; one tool per turn."""
+
+# Compact prompt for club SaaS / Groq TPM limits (avoids shipping the full OS prompt).
+CLUB_SYSTEM_PROMPT = """You are HIVE, a club-operations assistant. Use tools to do real work.
+Call exactly ONE tool per response, then wait for the result.
+
+Gmail: gmail_status, gmail_search, gmail_read_thread, gmail_list_labels,
+gmail_create_draft (preferred before send), gmail_send_draft / gmail_send_message
+(approval required), gmail_archive, gmail_mark_read, gmail_modify_labels.
+
+Calendar: calendar_list_events, calendar_detect_conflicts, calendar_find_free_slots,
+calendar_create_event / calendar_update_event (approval), calendar_delete_event (confirm).
+
+Tasks: task_add, task_list, task_update, task_complete, task_delete, tasks_sync.
+
+Workflows: workflow_daily_brief, workflow_triage_inbox, workflow_prepare_meeting,
+workflow_post_meeting_followup, workflow_sponsor_reminders, workflow_volunteer_schedule,
+workflow_venue_confirmation, mission_list, mission_run.
+
+Also: web_search, exa_search when you need external facts.
+
+Rules: ground claims in tool results; never invent IDs; draft email before sending;
+keep replies short and action-oriented."""
 
 COORDINATOR_PROMPT = """CLUB COORDINATOR MODE
 
@@ -239,7 +309,7 @@ class Leader:
                 f"{synthesis}"
             )
         except Exception as e:
-            return f"Swarm error: {e}. Falling back to single-agent mode."
+            raise RuntimeError(f"swarm unavailable: {e}") from e
 
     async def handle_message(self, user_message: str,
                              session_id: str,
@@ -253,24 +323,65 @@ class Leader:
         memory.add_message("user", user_message)
 
         # Smart routing via LLM (or forced swarm)
-        if force_swarm:
+        import os as _os
+        swarm_ready = bool(
+            (_os.environ.get("OPENAI_API_KEY") or "").strip()
+            or (_os.environ.get("OPENAI_ADMIN_KEY") or "").strip()
+        )
+        if force_swarm and swarm_ready:
             mode = "swarm"
-        elif HIVE_AGENT_PROFILE == "coordinator":
-            # The club-ops workflow must stay single-agent: swarm workers do not
-            # share the desktop permission callback.
+        elif HIVE_AGENT_PROFILE == "coordinator" or not swarm_ready:
+            # Club-ops desktop must stay single-agent; swarm needs separate OpenAI creds.
             mode = "single"
         else:
             mode = await self._route_task(user_message)
+            if mode == "swarm" and not swarm_ready:
+                mode = "single"
+
+        # #region agent log
+        _dbg("A", "leader.py:handle_message", "routing decision", {
+            "profile": HIVE_AGENT_PROFILE,
+            "mode": mode,
+            "force_swarm": force_swarm,
+            "swarm_ready": swarm_ready,
+            "msg_len": len(user_message or ""),
+            "memory_msgs": len(getattr(memory, "messages", []) or []),
+        })
+        # #endregion
 
         if mode == "swarm":
-            response = await self._run_swarm_task(
-                user_message, on_tool_call, on_permission, on_text
-            )
+            try:
+                response = await self._run_swarm_task(
+                    user_message, on_tool_call, on_permission, on_text
+                )
+                # #region agent log
+                _dbg("E", "leader.py:swarm_ok", "swarm succeeded", {"resp_len": len(response or "")})
+                # #endregion
+            except Exception as swarm_err:
+                # #region agent log
+                _dbg("A", "leader.py:swarm_fallback", "swarm failed; falling back to single", {
+                    "error_type": type(swarm_err).__name__,
+                    "error": str(swarm_err)[:240],
+                })
+                # #endregion
+                # Swarm needs its own credentials; never surface that as the reply.
+                response = await self._run_single_agent(
+                    user_message, session_id, memory, db,
+                    on_tool_call, on_permission, on_text
+                )
         else:
             response = await self._run_single_agent(
                 user_message, session_id, memory, db,
                 on_tool_call, on_permission, on_text
             )
+
+        # #region agent log
+        _dbg("E", "leader.py:handle_message_done", "final response", {
+            "resp_prefix": (response or "")[:120],
+            "resp_len": len(response or ""),
+            "looks_like_swarm_error": (response or "").startswith("Swarm error:"),
+        })
+        # #endregion
 
         memory.add_message("assistant", response)
         return response
@@ -280,9 +391,11 @@ class Leader:
                                  on_tool_call=None, on_permission=None,
                                  on_text=None) -> str:
         """Standard single-agent path with tool loop."""
-        prompt = SYSTEM_PROMPT
         if HIVE_AGENT_PROFILE == "coordinator":
-            prompt += "\n\n" + COORDINATOR_PROMPT
+            prompt = CLUB_SYSTEM_PROMPT + "\n\n" + COORDINATOR_PROMPT
+        else:
+            # Prefer the compact full prompt (Exa + Spotify + browser + mail).
+            prompt = FULL_SYSTEM_PROMPT
         system_content = (
             prompt
             + f"\n\nCURRENT TIME: {_now_iso()}"
@@ -290,6 +403,15 @@ class Leader:
         )
         system = {"role": "system", "content": system_content}
         context_messages = [system] + memory.get_context_window()
+
+        # #region agent log
+        _dbg("B", "leader.py:_run_single_agent", "payload sizes before run_loop", {
+            "system_chars": len(system_content),
+            "context_msgs": len(context_messages),
+            "context_chars": sum(len(str(m.get("content") or "")) for m in context_messages),
+            "tool_count": len(TOOLS),
+        })
+        # #endregion
 
         response = await self.runtime.run_loop(
             session_id=session_id,

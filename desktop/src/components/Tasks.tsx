@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { RequestFn, TaskItem } from '../types';
+import { EmptyState, PageShell } from './PageShell';
 
 interface TasksProps {
   request: RequestFn;
   refreshKey: number;
   onNotify: (kind: string, title: string, detail?: string) => void;
+  onAsk?: (text: string) => void;
 }
 
-export function TasksScreen({ request, refreshKey, onNotify }: TasksProps) {
+export function TasksScreen({ request, refreshKey, onNotify, onAsk }: TasksProps) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [pending, setPending] = useState(0);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -87,23 +89,22 @@ export function TasksScreen({ request, refreshKey, onNotify }: TasksProps) {
   );
 
   return (
-    <div className="ops-page">
-      <div className="page-head">
-        <div>
-          <h1>Tasks</h1>
-          <p>Follow-ups captured by HIVE. Local by default, with optional Google Tasks sync.</p>
-        </div>
-        <div className="page-head-actions">
-          <span className="pending-pill">{pending} pending</span>
+    <PageShell
+      className="ops-page"
+      title="Tasks"
+      purpose="Follow-ups from email and meetings. Add one here, or ask HIVE to capture them."
+      meta={<span className="pending-pill">{pending} pending</span>}
+      action={
+        <>
           <button type="button" className="ghost-btn btn-small" onClick={() => setShowCompleted((value) => !value)}>
             {showCompleted ? 'Hide completed' : 'Show completed'}
           </button>
           <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {error && <div className="banner banner-error">{error}</div>}
 
       <form className="task-form card" onSubmit={addTask}>
@@ -135,11 +136,20 @@ export function TasksScreen({ request, refreshKey, onNotify }: TasksProps) {
 
       <div className="item-list">
         {tasks.length === 0 && !loading ? (
-          <div className="empty">
-            <div className="empty-icon">☑</div>
-            <h2>No tasks</h2>
-            <p>Add one above, or ask HIVE to capture follow-ups from email and meetings.</p>
-          </div>
+          <EmptyState
+            icon="☑"
+            title="No tasks yet"
+            body="Add one above, or ask HIVE to pull follow-ups from inbox and meetings."
+            actionLabel={onAsk ? 'Ask HIVE to capture follow-ups' : undefined}
+            onAction={
+              onAsk
+                ? () =>
+                    onAsk(
+                      'Look at my unread inbox and upcoming meetings, then add clear follow-up tasks for anything I owe.'
+                    )
+                : undefined
+            }
+          />
         ) : (
           tasks.map((task) => (
             <article
@@ -169,6 +179,6 @@ export function TasksScreen({ request, refreshKey, onNotify }: TasksProps) {
           ))
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

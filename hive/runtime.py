@@ -1,5 +1,29 @@
 """Runtime — agent execution loop with process isolation."""
 
+# #region agent log
+import json as _dbg_json
+import time as _dbg_time
+from pathlib import Path as _DbgPath
+_DEBUG_LOG = _DbgPath("/Users/bhagatveersingh/PEC HACKATHON/.cursor/debug-8b6d8b.log")
+
+def _dbg(hypothesis_id: str, location: str, message: str, data: dict | None = None) -> None:
+    try:
+        _DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with _DEBUG_LOG.open("a", encoding="utf-8") as f:
+            f.write(_dbg_json.dumps({
+                "sessionId": "8b6d8b",
+                "hypothesisId": hypothesis_id,
+                "location": location,
+                "message": message,
+                "data": data or {},
+                "timestamp": int(_dbg_time.time() * 1000),
+                "runId": "pre-fix",
+            }, ensure_ascii=False) + "\n")
+            f.flush()
+    except Exception:
+        pass
+# #endregion
+
 import asyncio
 import json
 import time
@@ -7,7 +31,7 @@ import types
 from concurrent.futures import ProcessPoolExecutor
 from hive.config import MAX_AGENTS, AGENT_TIMEOUT, MAX_ITERATIONS
 from hive.llm import QwenClient
-from hive.tools import TOOLS, execute_tool
+from hive.tools import TOOLS, execute_tool, select_tools_for_llm
 from hive.permissions import get_tool_tier, check_dangerous_command, should_auto_allow
 from hive.agents.safety_agent import SafetyAgent
 from hive.core.agent_state import get_or_create_state
@@ -127,16 +151,40 @@ class AgentRuntime:
         except ImportError:
             pass
 
-        tools_schema = self.llm.build_tools_schema(TOOLS)
+        last_user = ""
+        for msg in reversed(messages or []):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                last_user = str(msg.get("content") or "")
+                break
+        active_tools = select_tools_for_llm(TOOLS, user_message=last_user)
+        tools_schema = self.llm.build_tools_schema(active_tools)
         conversation = list(messages)
         iteration = 0
         agent_state = get_or_create_state("single_agent")
         agent_state.task_started()
 
+        # #region agent log
+        _tools_chars = len(json.dumps(tools_schema))
+        _msg_chars = sum(len(str(m.get("content") or "")) for m in conversation)
+        _dbg("B", "runtime.py:run_loop", "request budget estimate", {
+            "tool_count": len(tools_schema),
+            "registry_tools": len(TOOLS),
+            "active_tools": len(active_tools),
+            "tools_chars": _tools_chars,
+            "tools_est_tokens": _tools_chars // 4,
+            "msg_count": len(conversation),
+            "msg_chars": _msg_chars,
+            "msg_est_tokens": _msg_chars // 4,
+            "total_est_tokens": (_tools_chars + _msg_chars) // 4,
+            "model": getattr(self.llm, "model", None),
+            "runId_tag": "post-fix",
+        })
+        # #endregion
+
         try:
-            # First iteration forces tool usage; subsequent iterations use auto
-            # so the model can respond with text after getting tool results
-            current_tool_choice = "required"
+            # Use auto so simple chat (e.g. "hi") works on Groq/OSS models that
+            # reject forced tool_choice="required" when no tool is needed.
+            current_tool_choice = "auto"
             
             while iteration < MAX_LOOP_ITERATIONS:
                 iteration += 1
@@ -145,7 +193,18 @@ class AgentRuntime:
                 full_content = ""
                 tool_calls = []
                 
-                async for chunk in self.llm.stream(conversation, tools=tools_schema, tool_choice=current_tool_choice):
+                try:
+                    _stream_iter = self.llm.stream(conversation, tools=tools_schema, tool_choice=current_tool_choice)
+                except Exception as stream_init_err:
+                    # #region agent log
+                    _dbg("B", "runtime.py:stream_init", "stream init failed", {
+                        "iteration": iteration,
+                        "error": str(stream_init_err)[:300],
+                    })
+                    # #endregion
+                    raise
+
+                async for chunk in _stream_iter:
                     delta = chunk.get("choices", [{}])[0].get("delta", {})
                     
                     # Stream content token by token
@@ -160,9 +219,18 @@ class AgentRuntime:
                         for tc in delta["tool_calls"]:
                             idx = tc.get("index", 0)
                             while len(tool_calls) <= idx:
-                                tool_calls.append({"id": "", "function": {"name": "", "arguments": ""}})
+                                tool_calls.append(
+                                    {
+                                        "id": "",
+                                        "type": "function",
+                                        "function": {"name": "", "arguments": ""},
+                                    }
+                                )
+                            tool_calls[idx]["type"] = "function"
                             if tc.get("id"):
                                 tool_calls[idx]["id"] = tc["id"]
+                            if tc.get("type"):
+                                tool_calls[idx]["type"] = tc["type"]
                             if tc.get("function", {}).get("name"):
                                 tool_calls[idx]["function"]["name"] = tc["function"]["name"]
                             if tc.get("function", {}).get("arguments"):
@@ -181,6 +249,10 @@ class AgentRuntime:
 
                 # After first tool call, switch to auto so model can respond with text
                 current_tool_choice = "auto"
+
+                # Groq/OpenAI require tool_calls[].type == "function"
+                for tc in tool_calls:
+                    tc["type"] = tc.get("type") or "function"
 
                 # When tool_calls present, content should be empty to avoid API issues
                 assistant_msg = {"role": "assistant", "content": "", "tool_calls": tool_calls}
@@ -261,6 +333,13 @@ class AgentRuntime:
             agent_state.task_completed(success=False)
             return f"I reached the maximum number of tool iterations ({MAX_LOOP_ITERATIONS}). Here is what I accomplished so far:\n\n{full_content}" if full_content else "I reached the maximum number of iterations without a final response."
         except Exception as e:
+            # #region agent log
+            _dbg("B", "runtime.py:run_loop_error", "run_loop failed", {
+                "error_type": type(e).__name__,
+                "error": str(e)[:400],
+                "is_413": "413" in str(e) or "too large" in str(e).lower() or "TPM" in str(e),
+            })
+            # #endregion
             agent_state.task_completed(success=False)
             raise
 
@@ -277,7 +356,13 @@ class AgentRuntime:
         except ImportError:
             pass
 
-        tools_schema = self.llm.build_tools_schema(TOOLS)
+        last_user = ""
+        for msg in reversed(messages or []):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                last_user = str(msg.get("content") or "")
+                break
+        active_tools = select_tools_for_llm(TOOLS, user_message=last_user)
+        tools_schema = self.llm.build_tools_schema(active_tools)
         conversation = list(messages)
         iteration = 0
         agent_state = get_or_create_state("single_agent")
@@ -288,8 +373,8 @@ class AgentRuntime:
         current_response = []
         
         try:
-            # First iteration forces tool usage; subsequent iterations use auto
-            current_tool_choice = "required"
+            # Use auto so providers like Groq gpt-oss can answer without tools.
+            current_tool_choice = "auto"
             
             while iteration < MAX_LOOP_ITERATIONS:
                 iteration += 1
@@ -326,6 +411,10 @@ class AgentRuntime:
                 if not tool_calls:
                     agent_state.task_completed(success=True)
                     return full_content or "I did not receive a response from the model."
+
+                for tc in tool_calls:
+                    if isinstance(tc, dict):
+                        tc["type"] = tc.get("type") or "function"
                 
                 # Handle tool calls
                 assistant_msg = {"role": "assistant", "content": full_content, "tool_calls": tool_calls}

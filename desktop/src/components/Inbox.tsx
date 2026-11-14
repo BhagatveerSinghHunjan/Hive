@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { InboxItem, RequestFn } from '../types';
+import { EmptyState, PageShell } from './PageShell';
 
 interface InboxProps {
   request: RequestFn;
   refreshKey: number;
   onNotify: (kind: string, title: string, detail?: string) => void;
+  onAsk?: (text: string) => void;
 }
 
-export function InboxScreen({ request, refreshKey, onNotify }: InboxProps) {
+export function InboxScreen({ request, refreshKey, onNotify, onAsk }: InboxProps) {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -60,25 +62,24 @@ export function InboxScreen({ request, refreshKey, onNotify }: InboxProps) {
   const unread = items.filter((item) => item.unread).length;
 
   return (
-    <div className="ops-page">
-      <div className="page-head">
-        <div>
-          <h1>Inbox</h1>
-          <p>Unread mail, classified by urgency. Drafts are prepared for review — never auto-sent.</p>
-        </div>
-        <div className="page-head-actions">
-          <span className="pending-pill">{unread} unread</span>
-          <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </div>
-      </div>
-
+    <PageShell
+      className="ops-page"
+      title="Inbox"
+      purpose="Unread mail classified by urgency. Drafts are prepared for review — never auto-sent."
+      meta={<span className="pending-pill">{unread} unread</span>}
+      action={
+        <button type="button" className="ghost-btn btn-small" onClick={() => void load()} disabled={loading}>
+          {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      }
+    >
       {needsAuth && (
         <div className="banner banner-warn">
           <div>
-            <strong>Gmail is not authorized.</strong> Run{' '}
-            <code>python -m hive.cli --connect-google</code>, then refresh.
+            <strong>Connect Google to read Gmail.</strong>
+            <div className="card-foot" style={{ marginTop: 6 }}>
+              Run <code>python -m hive.cli --connect-google</code>, then refresh.
+            </div>
           </div>
         </div>
       )}
@@ -87,11 +88,17 @@ export function InboxScreen({ request, refreshKey, onNotify }: InboxProps) {
 
       <div className="item-list">
         {items.length === 0 && !loading ? (
-          <div className="empty">
-            <div className="empty-icon">✉</div>
-            <h2>Inbox zero</h2>
-            <p>No unread messages in the last 14 days. New mail appears here after a refresh.</p>
-          </div>
+          <EmptyState
+            icon="✉"
+            title="Inbox zero"
+            body="No unread messages in the last 14 days. Run triage anytime or refresh after new mail arrives."
+            actionLabel={onAsk ? 'Ask HIVE to triage inbox' : 'Refresh'}
+            onAction={
+              onAsk
+                ? () => onAsk('Triage my unread inbox and draft replies for anything urgent.')
+                : () => void load()
+            }
+          />
         ) : (
           items.map((item, index) => (
             <article
@@ -129,8 +136,8 @@ export function InboxScreen({ request, refreshKey, onNotify }: InboxProps) {
       </div>
 
       <div className="approval-note">
-        Drafts land in Gmail for a final human review. Sending always requires a separate approval.
+        Drafts land in Gmail for review. Sending always needs a separate approval.
       </div>
-    </div>
+    </PageShell>
   );
 }

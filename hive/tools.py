@@ -91,7 +91,10 @@ TOOLS = {
         },
     },
     "exa_search": {
-        "description": "Search the web using Exa AI (Google Maps, business directories, etc.)",
+        "description": (
+            "Web search via Exa.ai (https://exa.ai). Use for Google-style lookup, "
+            "news, companies, research, people, and general facts. Prefer this for any search."
+        ),
         "parameters": {
             "query": {"type": "string", "description": "Search query"},
             "num_results": {"type": "integer", "description": "Number of results (default 5)"},
@@ -101,7 +104,7 @@ TOOLS = {
         },
     },
     "web_search": {
-        "description": "Search the web for information (alias for exa_search)",
+        "description": "Search the web (powered by Exa.ai — same as exa_search). Use for any Google-like search.",
         "parameters": {
             "query": {"type": "string", "description": "Search query"},
             "num_results": {"type": "integer", "description": "Number of results (default 5)"},
@@ -371,12 +374,23 @@ TOOLS = {
             "max_steps": {"type": "integer", "description": "Max steps (default 30)"},
         },
     },
-    # ─── Spotify Control (uses the logged-in persistent browser) ─
+    # ─── Spotify Control (official Web API / OAuth — not Chrome) ─
     "spotify_control": {
-        "description": "Control the Spotify web player (must be logged in). Actions: play_playlist (best for free accounts — plays your own playlists), list_playlists, play (search a song), pause, resume, next, previous, now_playing.",
+        "description": (
+            "Control Spotify via the official Web API (OAuth), not Chrome. "
+            "Needs SPOTIFY_CLIENT_ID/SECRET, `python -m hive.cli --connect-spotify`, "
+            "Premium, and an open Spotify device. "
+            "Actions: play, play_playlist, pause, resume, next, previous, now_playing."
+        ),
         "parameters": {
-            "action": {"type": "string", "description": "play_playlist | list_playlists | play | pause | resume | next | previous | now_playing"},
-            "query": {"type": "string", "description": "Playlist or song name (play_playlist/play). Omit query to play your first sidebar playlist."},
+            "action": {
+                "type": "string",
+                "description": "play | play_playlist | pause | resume | next | previous | now_playing",
+            },
+            "query": {
+                "type": "string",
+                "description": "Song/artist/playlist name when action is play or play_playlist",
+            },
         },
     },
     # ─── Vault Tools ────────────────────────────────────────────
@@ -444,6 +458,169 @@ TOOLS = {
 # Native integrations (Gmail, Calendar, Tasks) and club-ops workflows.
 TOOLS.update(INTEGRATION_TOOLS)
 TOOLS.update(WORKFLOW_TOOLS)
+
+# Feature packs — used when the provider has a tight TPM budget (e.g. Groq).
+# Search always goes through Exa (exa_search / web_search alias).
+_TOOL_PACKS: dict[str, tuple[str, ...]] = {
+    "core": (
+        "exa_search",
+        "web_search",
+        "web_fetch",
+        "system_info",
+        "create_excel",
+    ),
+    "mail": (
+        "gmail_status",
+        "gmail_search",
+        "gmail_read_thread",
+        "gmail_list_labels",
+        "gmail_create_draft",
+        "gmail_send_draft",
+        "gmail_send_message",
+        "gmail_archive",
+        "gmail_mark_read",
+        "gmail_modify_labels",
+    ),
+    "calendar": (
+        "calendar_list_events",
+        "calendar_detect_conflicts",
+        "calendar_find_free_slots",
+        "calendar_create_event",
+        "calendar_update_event",
+        "calendar_delete_event",
+    ),
+    "tasks": (
+        "task_add",
+        "task_list",
+        "task_update",
+        "task_complete",
+        "task_delete",
+        "tasks_sync",
+    ),
+    "spotify": ("spotify_control",),
+    "browser": (
+        "browser_open",
+        "browser_inspect",
+        "browser_click",
+        "browser_type",
+        "browser_read",
+        "browser_screenshot",
+        "browser_back",
+        "browser_close",
+        "browser_wait",
+        "browser_google_login",
+        "browser_oauth",
+        "browser_session_save",
+        "browser_session_load",
+        "browser_list_sessions",
+        "browser_delete_session",
+        "browser_use_task",
+    ),
+    "files": (
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_directory",
+        "search_content",
+        "run_command",
+    ),
+    "workflows": (
+        "workflow_daily_brief",
+        "workflow_triage_inbox",
+        "workflow_prepare_meeting",
+        "workflow_post_meeting_followup",
+        "workflow_sponsor_reminders",
+        "workflow_volunteer_schedule",
+        "workflow_venue_confirmation",
+        "mission_list",
+        "mission_run",
+    ),
+    "vault": (
+        "vault_store_credential",
+        "vault_list_credentials",
+        "vault_store_card",
+        "vault_list_cards",
+    ),
+}
+
+_PACK_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "mail": ("gmail", "email", "inbox", "draft", "reply", "mail"),
+    "calendar": ("calendar", "meeting", "schedule", "event", "agenda", "invite"),
+    "tasks": ("task", "todo", "to-do", "follow-up", "follow up"),
+    "spotify": ("spotify", "playlist", "song", "music", "play ", "pause", "skip"),
+    "browser": ("browser", "login", "website", "chrome", "open http", "navigate", "screenshot"),
+    "files": ("file", "folder", "directory", "code", "repo", "terminal", "command"),
+    "workflows": ("workflow", "mission", "brief", "triage", "sponsor", "venue", "volunteer"),
+    "vault": ("vault", "password", "credential", "card", "checkout"),
+}
+
+
+def _packs_for_message(message: str) -> set[str]:
+    text = (message or "").lower()
+    selected = {"core"}  # Exa search always available
+    search_intent = any(
+        word in text
+        for word in (
+            "search",
+            "google",
+            "look up",
+            "lookup",
+            "exa",
+            "find online",
+            "web for",
+            "news about",
+        )
+    )
+    for pack, words in _PACK_KEYWORDS.items():
+        if any(word in text for word in words):
+            selected.add(pack)
+    # Search-only asks stay on Exa (+ core), not the whole registry.
+    if search_intent and selected == {"core"}:
+        return selected
+    # Broad assistant default: real product surface, not club-only.
+    if selected == {"core"}:
+        selected.update({"mail", "calendar", "tasks", "spotify", "browser", "files", "workflows"})
+    return selected
+
+
+def select_tools_for_llm(
+    all_tools: dict | None = None,
+    user_message: str = "",
+) -> dict:
+    """Choose which tools the LLM can see this turn.
+
+    Profiles:
+      full     — every registered tool
+      club     — legacy Gmail/Calendar/Tasks/workflows only
+      dynamic  — feature packs from the user message (Exa always on)
+      auto     — full off Groq; dynamic on Groq (TPM budget)
+    """
+    from hive.config import HIVE_TOOL_PROFILE, LLM_BASE_URL
+
+    tools = all_tools if all_tools is not None else TOOLS
+    profile = (HIVE_TOOL_PROFILE or "auto").strip().lower()
+    base = (LLM_BASE_URL or "").lower()
+    on_groq = "groq.com" in base
+
+    if profile == "full" and not on_groq:
+        return tools
+    if profile == "full" and on_groq:
+        # Groq free tier cannot fit 100 schemas; enable every feature pack instead.
+        packs = set(_TOOL_PACKS)
+    elif profile == "club":
+        packs = {"core", "mail", "calendar", "tasks", "workflows"}
+    elif profile in ("dynamic", "auto") or on_groq:
+        packs = _packs_for_message(user_message)
+        if profile == "auto" and not on_groq:
+            return tools
+    else:
+        return tools
+
+    names: set[str] = set()
+    for pack in packs:
+        names.update(_TOOL_PACKS.get(pack, ()))
+    selected = {name: spec for name, spec in tools.items() if name in names}
+    return selected or tools
 TOOLS.update({
     "browser_record_start": {
         "description": (
@@ -763,8 +940,12 @@ async def execute_tool(tool_name: str, **kwargs) -> dict:
                 )
 
             elif tool_name == "spotify_control":
-                from hive.browser import spotify
-                result = await spotify.control(kwargs.get("action", ""), kwargs.get("query", ""))
+                from hive.integrations import spotify as spotify_api
+                action = kwargs.get("action", "")
+                query = kwargs.get("query", "")
+                if action == "play_playlist" and query and "playlist" not in query.lower():
+                    query = f"playlist {query}"
+                result = await spotify_api.control(action, query)
             # ─── Browser Use Tool (Chrome Profile) ──────────────
             elif tool_name == "browser_use_task":
                 result = await _browser_use_task(

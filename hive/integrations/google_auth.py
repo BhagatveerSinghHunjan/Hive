@@ -172,10 +172,12 @@ class GoogleAuthManager:
         )
         if port is None:
             port = int(os.environ.get("GOOGLE_OAUTH_PORT", "0"))
+        # select_account forces the account chooser so Chrome does not
+        # silently reuse the currently signed-in profile.
         creds = flow.run_local_server(
             port=port,
             access_type="offline",
-            prompt="consent",
+            prompt="select_account consent",
             open_browser=open_browser,
         )
         self._save_token(creds)

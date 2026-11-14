@@ -9,6 +9,7 @@ import { InboxScreen } from './components/Inbox';
 import { CalendarScreen } from './components/Calendar';
 import { TasksScreen } from './components/Tasks';
 import { MissionsScreen } from './components/Missions';
+import { Chat } from './components/Chat';
 import { EggToast } from './components/EggToast';
 import type {
   AgentState,
@@ -31,14 +32,14 @@ function nextId(): string {
 }
 
 const QUICK_PROMPTS = [
-  'Triage my unread inbox and draft replies for anything urgent.',
-  'Prep me for my next club meeting using my calendar and email.',
-  'Remind sponsors about outstanding deliverables — draft the emails first.',
+  'Search the web with Exa for the latest news about AI agents and summarize the top 5 links.',
+  'Play a chill playlist on Spotify.',
   'Give me my morning brief: agenda, unread email, and tasks due soon.',
+  'Create a 30-minute calendar event tomorrow at 3:00 PM titled “HIVE calendar test” at PEC — wait for my approval.',
 ];
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('dashboard');
+  const [screen, setScreen] = useState<Screen>('chat');
   const [connected, setConnected] = useState<ConnectionState>('connecting');
   const [status, setStatus] = useState('connecting');
   const [task, setTask] = useState('');
@@ -281,12 +282,32 @@ export default function App() {
           const content = String(raw.content ?? '');
           stopStream();
           setStreamText('');
+          // Never dump swarm credential failures into the chat as the answer.
+          if (/^Swarm error:/i.test(content.trim())) {
+            setMessages((prev) => {
+              const next = [
+                ...prev,
+                {
+                  id: nextId(),
+                  role: 'error' as const,
+                  content,
+                  ts: Date.now(),
+                },
+              ];
+              return next.length > 50 ? next.slice(-50) : next;
+            });
+            setProcessing(false);
+            setStatus('error');
+            pushEvent('error', 'Swarm unavailable', content.slice(0, 500));
+            break;
+          }
           setMessages((prev) => {
             const next = [...prev, { id: nextId(), role: 'assistant' as const, content, ts: Date.now() }];
             return next.length > 50 ? next.slice(-50) : next;
           });
           setProcessing(false);
           setStatus('idle');
+          setTask('');
           setApprovals([]);
           setInteractiveQueue([]);
           pushEvent('response', 'Run complete', content.slice(0, 500));
@@ -295,6 +316,9 @@ export default function App() {
 
         case 'error': {
           const message = String(raw.message ?? 'Unknown runtime error');
+          // #region agent log
+          fetch('http://127.0.0.1:7572/ingest/5b105863-c8ae-4168-a254-8fa08fce3535',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8b6d8b'},body:JSON.stringify({sessionId:'8b6d8b',runId:'pre-fix',hypothesisId:'D',location:'App.tsx:error',message:'ui received error event',data:{preview:message.slice(0,300),is413:/413|too large|TPM/i.test(message),isSwarm:/swarm error|missing credentials/i.test(message)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           if (/invalid[_ -]?api[_ -]?key|incorrect api key/i.test(message)) {
             setApiKeyIssue(true);
           }
@@ -306,6 +330,7 @@ export default function App() {
           });
           setProcessing(false);
           setStatus('error');
+          setTask('');
           setApprovals([]);
           setInteractiveQueue([]);
           pushEvent('error', 'Runtime error', message);
@@ -434,6 +459,7 @@ export default function App() {
       setInteractiveQueue([]);
       setRuntimeExit(null);
 
+      setScreen('chat');
       setMessages((prev) => {
         const next = [...prev, { id: nextId(), role: 'user' as const, content: value, ts: Date.now() }];
         return next.length > 50 ? next.slice(-50) : next;
@@ -446,7 +472,7 @@ export default function App() {
 
   const ask = useCallback(
     (text: string) => {
-      setScreen('monitor');
+      setScreen('chat');
       submit(text);
     },
     [submit]
@@ -461,6 +487,8 @@ export default function App() {
     setProcessing(false);
     setStreamText('');
     streamBuffer.current = '';
+    setMessages([]);
+    setTask('');
     setToolCalls([]);
     setAgents([]);
     setApprovals([]);
@@ -518,7 +546,7 @@ export default function App() {
           status={status}
           task={task}
           elapsed={elapsed}
-          mode={mode}
+          processing={processing}
           onRestart={restart}
         />
 
@@ -545,7 +573,29 @@ export default function App() {
           </div>
         )}
 
-        <main className="screen">
+        <main className={`screen ${screen === 'chat' ? 'screen-chat' : ''}`}>
+          {screen === 'chat' && (
+            <Chat
+              messages={messages}
+              streamText={streamText}
+              processing={processing}
+              quickPrompts={QUICK_PROMPTS}
+              onSubmit={submit}
+              onNewChat={() => {
+                setMessages([]);
+                setStreamText('');
+                streamBuffer.current = '';
+                setTask('');
+                setStatus(connected === 'connected' ? 'idle' : status);
+                setToolCalls([]);
+                setAgents([]);
+                setElapsed('0.0s');
+                pushEvent('system', 'New chat started');
+              }}
+              disabled={processing || connected !== 'connected'}
+            />
+          )}
+
           {screen === 'dashboard' && (
             <Dashboard
               connected={connected}
@@ -570,7 +620,7 @@ export default function App() {
           )}
 
           {screen === 'inbox' && (
-            <InboxScreen request={request} refreshKey={refreshTick} onNotify={pushEvent} />
+            <InboxScreen request={request} refreshKey={refreshTick} onNotify={pushEvent} onAsk={ask} />
           )}
 
           {screen === 'calendar' && (
@@ -578,7 +628,7 @@ export default function App() {
           )}
 
           {screen === 'tasks' && (
-            <TasksScreen request={request} refreshKey={refreshTick} onNotify={pushEvent} />
+            <TasksScreen request={request} refreshKey={refreshTick} onNotify={pushEvent} onAsk={ask} />
           )}
 
           {screen === 'missions' && (
@@ -593,6 +643,7 @@ export default function App() {
               streamText={streamText}
               processing={processing}
               logs={logs}
+              onOpenChat={() => setScreen('chat')}
             />
           )}
 
@@ -611,6 +662,19 @@ export default function App() {
           disabled={processing || connected !== 'connected'}
           connected={connected}
           processing={processing}
+          hint={
+            screen === 'calendar'
+              ? 'Ask HIVE to schedule or prep a meeting'
+              : screen === 'inbox'
+                ? 'Ask HIVE to triage or draft a reply'
+                : screen === 'approvals'
+                  ? 'Approvals pause risky actions — decide above, or ask something new'
+                  : screen === 'missions'
+                    ? 'Or ask HIVE to run a club workflow in Chat'
+                    : screen === 'monitor'
+                      ? 'Send a task to see steps on Activity'
+                      : undefined
+          }
         />
       </div>
 

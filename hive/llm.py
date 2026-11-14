@@ -6,8 +6,53 @@ local Ollama server without touching code.
 """
 
 import json
+import time
+from pathlib import Path
 from openai import AsyncOpenAI
 from hive.config import LLM_API_KEY, LLM_MODEL, LLM_BASE_URL
+
+# #region agent log
+_DEBUG_LOG = Path("/Users/bhagatveersingh/PEC HACKATHON/.cursor/debug-8b6d8b.log")
+
+def _dbg(hypothesis_id: str, location: str, message: str, data: dict | None = None) -> None:
+    try:
+        _DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with _DEBUG_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "sessionId": "8b6d8b",
+                "hypothesisId": hypothesis_id,
+                "location": location,
+                "message": message,
+                "data": data or {},
+                "timestamp": int(time.time() * 1000),
+                "runId": "pre-fix",
+            }, ensure_ascii=False) + "\n")
+            f.flush()
+    except Exception:
+        pass
+# #endregion
+
+
+def _normalize_messages_for_provider(messages: list[dict]) -> list[dict]:
+    """Ensure assistant tool_calls include type=function (required by Groq)."""
+    out: list[dict] = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            out.append(msg)
+            continue
+        tool_calls = msg.get("tool_calls")
+        if msg.get("role") == "assistant" and tool_calls:
+            fixed = []
+            for tc in tool_calls:
+                if not isinstance(tc, dict):
+                    fixed.append(tc)
+                    continue
+                tc2 = dict(tc)
+                tc2["type"] = tc2.get("type") or "function"
+                fixed.append(tc2)
+            msg = {**msg, "tool_calls": fixed}
+        out.append(msg)
+    return out
 
 
 class QwenClient:
@@ -29,7 +74,10 @@ class QwenClient:
                    temperature: float | None = None,
                    max_tokens: int | None = None) -> dict:
         """Send chat completion request."""
-        kwargs = {"model": self.model, "messages": messages}
+        kwargs = {
+            "model": self.model,
+            "messages": _normalize_messages_for_provider(messages),
+        }
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = tool_choice
@@ -45,12 +93,35 @@ class QwenClient:
                      tools: list[dict] | None = None,
                      tool_choice: str | dict = "auto"):
         """Stream chat completion. Yields parsed chunks."""
-        kwargs = {"model": self.model, "messages": messages, "stream": True}
+        kwargs = {
+            "model": self.model,
+            "messages": _normalize_messages_for_provider(messages),
+            "stream": True,
+        }
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = tool_choice
 
-        stream = await self.client.chat.completions.create(**kwargs)
+        try:
+            # #region agent log
+            _dbg("B", "llm.py:stream", "creating stream", {
+                "model": self.model,
+                "msg_count": len(kwargs.get("messages") or []),
+                "tool_count": len(kwargs.get("tools") or []),
+                "tools_chars": len(json.dumps(kwargs.get("tools") or [])),
+                "msg_chars": sum(len(str(m.get("content") or "")) for m in (kwargs.get("messages") or []) if isinstance(m, dict)),
+            })
+            # #endregion
+            stream = await self.client.chat.completions.create(**kwargs)
+        except Exception as e:
+            # #region agent log
+            _dbg("B", "llm.py:stream_error", "provider rejected stream", {
+                "model": self.model,
+                "error_type": type(e).__name__,
+                "error": str(e)[:400],
+            })
+            # #endregion
+            raise
         async for chunk in stream:
             yield chunk.model_dump()
 

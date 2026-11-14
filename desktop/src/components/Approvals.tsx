@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { InteractivePromptRequest, PermissionRequest } from '../types';
+import { EmptyState, PageShell } from './PageShell';
 
 interface ApprovalsProps {
   approvals: PermissionRequest[];
@@ -8,43 +9,48 @@ interface ApprovalsProps {
   onInteractive: (requestId: string, result: unknown) => void;
 }
 
-const TOOL_INFO: Record<string, { label: string; note: string }> = {
+const TOOL_INFO: Record<string, { question: string; note: string }> = {
   gmail_create_draft: {
-    label: 'Create Gmail draft',
-    note: 'Draft only — nothing is sent until you send it from Gmail or approve a send.',
+    question: 'Create this Gmail draft?',
+    note: 'Draft only — nothing is sent until you approve a send later.',
   },
   gmail_send_draft: {
-    label: 'Send Gmail draft',
-    note: 'This will deliver an email to the recipient shown above.',
+    question: 'Send this email?',
+    note: 'This delivers the draft to the recipient.',
   },
   gmail_send_message: {
-    label: 'Send Gmail message',
-    note: 'This will deliver an email to the recipient shown above.',
+    question: 'Send this email?',
+    note: 'This delivers a message to the recipient.',
   },
   calendar_create_event: {
-    label: 'Create calendar event',
-    note: 'Attendees will receive an invite for the event shown above.',
+    question: 'Create this calendar event?',
+    note: 'Attendees may receive an invite.',
   },
   calendar_update_event: {
-    label: 'Update calendar event',
-    note: 'This changes an existing event. Attendees may be notified.',
+    question: 'Update this calendar event?',
+    note: 'Attendees may be notified of the change.',
   },
   calendar_delete_event: {
-    label: 'Delete calendar event',
-    note: 'This removes an event and may notify attendees.',
+    question: 'Delete this calendar event?',
+    note: 'This removes the event and may notify attendees.',
   },
   browser_playbook_replay: {
-    label: 'Replay a browser playbook',
-    note: 'Trust level decides whether this step needs approval for the site shown above.',
+    question: 'Replay this browser playbook?',
+    note: 'Trust level decides how much of this site run needs approval.',
   },
   checkout_confirm: {
-    label: 'Confirm purchase',
-    note: 'Review the merchant and amount before approving.',
+    question: 'Confirm this purchase?',
+    note: 'Review merchant and amount before approving.',
   },
 };
 
 function toolInfo(tool: string) {
-  return TOOL_INFO[tool] ?? { label: tool, note: 'Review the target carefully before approving.' };
+  return (
+    TOOL_INFO[tool] ?? {
+      question: `Allow ${tool}?`,
+      note: 'Review the target carefully before approving.',
+    }
+  );
 }
 
 function tierClass(tier: string): string {
@@ -68,22 +74,19 @@ function PermissionCard({
     <article className="approval-card">
       <div className="approval-head">
         <div>
-          <div className="card-label">Permission request</div>
-          <h3>{info.label}</h3>
+          <div className="card-label">Needs your decision</div>
+          <h3>{info.question}</h3>
           <div className="approval-tool">{request.tool}</div>
         </div>
         <span className={`tier-badge ${tierClass(request.tier)}`}>{request.tier}</span>
       </div>
 
       <div className="approval-target">
-        <span>Prepared change</span>
+        <span>Details</span>
         <code>{request.target || '(no target)'}</code>
       </div>
 
       <p className="approval-copy">{info.note}</p>
-      <p className="approval-copy">
-        Approve only if the target and tier look right. The runtime waits up to 120 seconds.
-      </p>
 
       <div className="approval-actions">
         <button className="btn btn-deny" onClick={() => onDecision(request.request_id, 'denied')}>
@@ -108,16 +111,16 @@ function InteractiveCard({
 
   const title =
     prompt.kind === '2fa'
-      ? 'Verification code required'
+      ? 'Enter the verification code'
       : prompt.kind === 'checkout_confirm'
-        ? 'Confirm purchase'
-        : 'CAPTCHA — human required';
+        ? 'Confirm this purchase?'
+        : 'Solve the CAPTCHA, then confirm';
 
   return (
     <article className="approval-card approval-interactive">
       <div className="approval-head">
         <div>
-          <div className="card-label">Human input</div>
+          <div className="card-label">Needs your input</div>
           <h3>{title}</h3>
         </div>
         <span className="tier-badge tier-human">human</span>
@@ -208,34 +211,22 @@ export function Approvals({ approvals, interactive, onPermission, onInteractive 
   const pending = approvals.length + interactive.length;
 
   return (
-    <div className="approvals">
-      <div className="page-head">
-        <div>
-          <h1>Approvals</h1>
-          <p>Human-in-the-loop gates for risky tools, money, and identity.</p>
-        </div>
+    <PageShell
+      className="approvals"
+      title="Approvals"
+      purpose="HIVE pauses here before sending mail or changing your calendar."
+      meta={
         <div className={`pending-pill ${pending > 0 ? 'has-pending' : ''}`}>
           {pending > 0 ? `${pending} waiting` : 'all clear'}
         </div>
-      </div>
-
+      }
+    >
       {pending === 0 ? (
-        <div className="empty approval-empty">
-          <div className="empty-icon" title="Empty comb">
-            ⬡
-          </div>
-          <h2>Quiet comb</h2>
-          <p>
-            When the colony needs to edit a file, run a sensitive command, confirm a purchase, or hand over a 2FA code, the
-            request lands here. Safe reads are auto-approved.
-          </p>
-          <div className="risk-legend">
-            <span className="tier-badge tier-safe">safe</span>
-            <span className="tier-badge tier-moderate">moderate</span>
-            <span className="tier-badge tier-sensitive">sensitive</span>
-            <span className="tier-badge tier-dangerous">dangerous</span>
-          </div>
-        </div>
+        <EmptyState
+          icon="✓"
+          title="Nothing waiting"
+          body="Safe reads run automatically. Sends, calendar writes, and risky tools pause here for you."
+        />
       ) : (
         <div className="approval-list">
           {approvals.map((request) => (
@@ -247,9 +238,18 @@ export function Approvals({ approvals, interactive, onPermission, onInteractive 
         </div>
       )}
 
+      {pending === 0 && (
+        <div className="risk-legend" style={{ marginTop: 16, justifyContent: 'center' }}>
+          <span className="tier-badge tier-safe">safe</span>
+          <span className="tier-badge tier-moderate">moderate</span>
+          <span className="tier-badge tier-sensitive">sensitive</span>
+          <span className="tier-badge tier-dangerous">dangerous</span>
+        </div>
+      )}
+
       <div className="approval-note">
-        Permission prompts time out after 120s; human prompts after 600s. Denying is always safe — HIVE adapts.
+        Permission prompts time out after 120s. Denying is always safe — HIVE adapts.
       </div>
-    </div>
+    </PageShell>
   );
 }
